@@ -165,13 +165,25 @@ public class MineTask extends BukkitRunnable {
             return;
         }
 
+        // 3. Mine target blocks BEFORE entering them to prevent suffocation!
+        // This ensures the player always stands in a 2-block high air space and mines safely from a distance.
+        boolean mined = executeMiningAt(target);
+        if (mined) {
+            minePause = MINE_PAUSE_TICKS;
+            // Apply velocity towards target slightly to keep player oriented, but do not snap or teleport yet
+            Vector direction = new Vector(target.getX() - current.getX(), target.getY() - current.getY(), target.getZ() - current.getZ());
+            if (direction.lengthSquared() > 0.01) {
+                player.setVelocity(direction.normalize().multiply(0.05));
+            }
+            return; // Stand still in the safe air space until the blocks are mined!
+        }
+
         double dx = target.getX() - current.getX();
         double dy = target.getY() - current.getY();
         double dz = target.getZ() - current.getZ();
-        double horizontalDist = Math.sqrt(dx * dx + dz * dz);
         double totalDist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-        // 3. Collision / Stuck checking
+        // 4. Collision / Stuck checking
         if (currentIndex != lastTargetIndex) {
             lastTargetIndex = currentIndex;
             lastDist = totalDist;
@@ -191,19 +203,12 @@ public class MineTask extends BukkitRunnable {
             return;
         }
 
-        // 4. Check for fluid leaks adjacent to current position and plug them
+        // 5. Check for fluid leaks adjacent to current position and plug them
         checkAndPlugLeaks(current);
 
-        // 5. Check if we arrived at target
+        // 6. Check if we arrived at target (which is now guaranteed to be air!)
         if (totalDist < SNAP_DISTANCE) {
             teleportToTarget(current, target);
-
-            // Execute mining at this location
-            boolean mined = executeMiningAt(target);
-            if (mined) {
-                minePause = MINE_PAUSE_TICKS;
-            }
-
             currentIndex++;
 
             // If in infinite mode and getting close to the end, extend the path dynamically!
@@ -219,7 +224,7 @@ public class MineTask extends BukkitRunnable {
                 cancel();
             }
         } else {
-            // Move player towards target using velocity
+            // Move player towards target using velocity (safely walking through already cleared air)
             Vector direction = new Vector(dx, dy, dz).normalize();
             double speedMultiplier = 1.0 + (auraSkillsHelper.getMiningLevel(player) * 0.008);
             Vector velocity = direction.multiply(SPEED * speedMultiplier);
