@@ -401,7 +401,7 @@ public class MineTask extends BukkitRunnable {
         return true;
     }
 
-    private boolean mineBlock(Block block) {
+    private boolean mineBlockWithoutVein(Block block) {
         if (isSolidAndMineable(block)) {
             if (verifyToolAndDurability(block.getType())) {
                 block.breakNaturally(player.getInventory().getItemInMainHand());
@@ -409,6 +409,82 @@ public class MineTask extends BukkitRunnable {
             }
         }
         return false;
+    }
+
+    private boolean mineBlock(Block block) {
+        Material type = block.getType();
+        if (isSolidAndMineable(block)) {
+            if (verifyToolAndDurability(type)) {
+                block.breakNaturally(player.getInventory().getItemInMainHand());
+                if (isOreBlock(type)) {
+                    mineVein(block, type);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isSameOreType(Material m1, Material m2) {
+        if (m1 == m2) return true;
+        if (isOreBlock(m1) && isOreBlock(m2)) {
+            String name1 = m1.name().replace("DEEPSLATE_", "").replace("NETHER_", "");
+            String name2 = m2.name().replace("DEEPSLATE_", "").replace("NETHER_", "");
+            return name1.equals(name2);
+        }
+        return false;
+    }
+
+    private void mineVein(Block startBlock, Material oreType) {
+        java.util.Queue<Block> queue = new java.util.LinkedList<>();
+        java.util.Set<Location> visited = new java.util.HashSet<>();
+        
+        Location startLoc = startBlock.getLocation();
+        visited.add(startLoc);
+        enqueueAdjacent(startBlock, oreType, queue, visited, startLoc);
+        
+        int minedCount = 0;
+        int maxVeinBlocks = 64;
+        
+        while (!queue.isEmpty() && minedCount < maxVeinBlocks) {
+            Block block = queue.poll();
+            if (!isSameOreType(block.getType(), oreType)) continue;
+            
+            if (mineBlockWithoutVein(block)) {
+                minedCount++;
+                enqueueAdjacent(block, oreType, queue, visited, startLoc);
+            }
+        }
+    }
+
+    private void enqueueAdjacent(Block block, Material oreType, java.util.Queue<Block> queue, java.util.Set<Location> visited, Location startLoc) {
+        World world = block.getWorld();
+        int bx = block.getX();
+        int by = block.getY();
+        int bz = block.getZ();
+        
+        int[][] directions = {
+            {1, 0, 0}, {-1, 0, 0},
+            {0, 1, 0}, {0, -1, 0},
+            {0, 0, 1}, {0, 0, -1}
+        };
+        
+        for (int[] dir : directions) {
+            int x = bx + dir[0];
+            int y = by + dir[1];
+            int z = bz + dir[2];
+            
+            Location loc = new Location(world, x, y, z);
+            if (visited.contains(loc)) continue;
+            visited.add(loc);
+            
+            if (loc.distanceSquared(startLoc) > 36.0) continue;
+            
+            Block adj = world.getBlockAt(x, y, z);
+            if (isSameOreType(adj.getType(), oreType)) {
+                queue.add(adj);
+            }
+        }
     }
 
     private boolean isOreBlock(Material mat) {
