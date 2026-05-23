@@ -183,6 +183,62 @@ public class MineTask extends BukkitRunnable {
             return;
         }
 
+        // 2c. If in infinite strip-mining mode, scan ahead. 
+        // If the next 10 blocks along the path (and their surrounding walls/ceiling/floor) contain only air, auto-stop!
+        if (isInfiniteMode) {
+            boolean hasSolidAhead = false;
+            World world = target.getWorld();
+            int maxCheck = Math.min(path.size(), currentIndex + 10);
+
+            if (path.size() < currentIndex + 10) {
+                List<Location> nextSeg = PathGenerator.generateDynamicSegment(startLoc, facing, lengthGenerated, 16, branchWidth);
+                path.addAll(nextSeg);
+                lengthGenerated += 16;
+                maxCheck = Math.min(path.size(), currentIndex + 10);
+            }
+
+            for (int i = currentIndex; i < maxCheck; i++) {
+                Location loc = path.get(i);
+                int tx = loc.getBlockX();
+                int ty = loc.getBlockY();
+                int tz = loc.getBlockZ();
+
+                for (int dy = -1; dy <= 2; dy++) {
+                    for (int dx = -1; dx <= 1; dx++) {
+                        for (int dz = -1; dz <= 1; dz++) {
+                            Block block = world.getBlockAt(tx + dx, ty + dy, tz + dz);
+                            if (block.getType().isSolid()) {
+                                hasSolidAhead = true;
+                                break;
+                            }
+                        }
+                        if (hasSolidAhead) break;
+                    }
+                    if (hasSolidAhead) break;
+                }
+                if (hasSolidAhead) break;
+            }
+
+            if (!hasSolidAhead) {
+                sendActivitySummary();
+                player.sendMessage(Component.text("Auto-mining stopped — reached open empty air space (no blocks ahead to mine).").color(NamedTextColor.YELLOW));
+                cancel();
+                return;
+            }
+        }
+
+        // Check if player has fallen down a mountain or is too far from target, immediately teleport back
+        double dx = target.getX() - current.getX();
+        double dy = target.getY() - current.getY();
+        double dz = target.getZ() - current.getZ();
+        double totalDist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        if (totalDist > MAX_DIRECT_STEP_DISTANCE) {
+            teleportToTarget(current, target);
+            stuckTicks = 0;
+            return;
+        }
+
         // 3. Mine target blocks BEFORE entering them to prevent suffocation!
         // This ensures the player always stands in a 2-block high air space and mines safely from a distance.
         boolean mined = executeMiningAt(target);
@@ -195,11 +251,6 @@ public class MineTask extends BukkitRunnable {
             }
             return; // Stand still in the safe air space until the blocks are mined!
         }
-
-        double dx = target.getX() - current.getX();
-        double dy = target.getY() - current.getY();
-        double dz = target.getZ() - current.getZ();
-        double totalDist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
         // 4. Collision / Stuck checking
         if (currentIndex != lastTargetIndex) {
@@ -215,7 +266,7 @@ public class MineTask extends BukkitRunnable {
             lastDist = totalDist;
         }
 
-        if (totalDist > MAX_DIRECT_STEP_DISTANCE || stuckTicks >= STUCK_TICK_THRESHOLD) {
+        if (stuckTicks >= STUCK_TICK_THRESHOLD) {
             teleportToTarget(current, target);
             stuckTicks = 0;
             return;
@@ -492,6 +543,27 @@ public class MineTask extends BukkitRunnable {
         return name.contains("ORE") || mat == Material.ANCIENT_DEBRIS;
     }
 
+    private boolean checkAndMineSides(World world, int x, int y, int z) {
+        boolean broken = false;
+        int[][] sideOffsets = {
+            {1, 0, 0}, {-1, 0, 0},
+            {0, 0, 1}, {0, 0, -1}
+        };
+
+        for (int[] offset : sideOffsets) {
+            Block sideFeet = world.getBlockAt(x + offset[0], y, z + offset[2]);
+            Block sideHead = world.getBlockAt(x + offset[0], y + 1, z + offset[2]);
+
+            if (isOreBlock(sideFeet.getType())) {
+                broken |= mineBlock(sideFeet);
+            }
+            if (isOreBlock(sideHead.getType())) {
+                broken |= mineBlock(sideHead);
+            }
+        }
+        return broken;
+    }
+
     private boolean executeMiningAt(Location loc) {
         boolean broken = false;
 
@@ -526,6 +598,10 @@ public class MineTask extends BukkitRunnable {
                 if (isOreBlock(ceil1.getType())) broken |= mineBlock(ceil1);
                 if (isOreBlock(floor2.getType())) broken |= mineBlock(floor2);
                 if (isOreBlock(ceil2.getType())) broken |= mineBlock(ceil2);
+
+                // Scan and collect ores on the left/right walls of the main tunnel
+                broken |= checkAndMineSides(world, x1, y, z);
+                broken |= checkAndMineSides(world, x2, y, z);
             } else {
                 int z1 = (int) Math.floor(loc.getZ());
                 int z2 = z1 - 1;
@@ -551,6 +627,10 @@ public class MineTask extends BukkitRunnable {
                 if (isOreBlock(ceil1.getType())) broken |= mineBlock(ceil1);
                 if (isOreBlock(floor2.getType())) broken |= mineBlock(floor2);
                 if (isOreBlock(ceil2.getType())) broken |= mineBlock(ceil2);
+
+                // Scan and collect ores on the left/right walls of the main tunnel
+                broken |= checkAndMineSides(world, x, y, z1);
+                broken |= checkAndMineSides(world, x, y, z2);
             }
         } else {
             Block feet = loc.getBlock();
@@ -564,6 +644,9 @@ public class MineTask extends BukkitRunnable {
                 Block ceil = loc.clone().add(0, 2, 0).getBlock();
                 if (isOreBlock(floor.getType())) broken |= mineBlock(floor);
                 if (isOreBlock(ceil.getType())) broken |= mineBlock(ceil);
+
+                // Scan and collect ores on the left/right walls of the side branches
+                broken |= checkAndMineSides(loc.getWorld(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
             }
         }
 
