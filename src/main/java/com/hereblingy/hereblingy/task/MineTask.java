@@ -117,6 +117,12 @@ public class MineTask extends BukkitRunnable {
             return;
         }
 
+        // 1a. Check for hostiles and defend!
+        if (handleDefense()) {
+            minePause = 8; // pause auto-mining for 8 ticks to honor weapon sweep cooldown
+            return;
+        }
+
         // 1. Inventory Full Check
         if (isInventoryFull()) {
             if (attemptDumpToChests()) {
@@ -233,10 +239,154 @@ public class MineTask extends BukkitRunnable {
     }
 
     private void teleportToTarget(Location current, Location target) {
-        Location snap = target.clone();
+        Location safeTarget = findSafeTeleportLocation(target);
+        Location snap = safeTarget.clone();
         snap.setPitch(current.getPitch());
         snap.setYaw(current.getYaw());
         player.teleport(snap);
+    }
+
+    private Location findSafeTeleportLocation(Location target) {
+        World world = target.getWorld();
+        int targetX = target.getBlockX();
+        int targetY = target.getBlockY();
+        int targetZ = target.getBlockZ();
+
+        Location bestLoc = null;
+        double bestDistSq = Double.MAX_VALUE;
+        boolean foundGround = false;
+
+        // Search in a 2-block radius
+        for (int dy = -2; dy <= 2; dy++) {
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    int x = targetX + dx;
+                    int y = targetY + dy;
+                    int z = targetZ + dz;
+
+                    Block feet = world.getBlockAt(x, y, z);
+                    Block head = world.getBlockAt(x, y + 1, z);
+                    Block stand = world.getBlockAt(x, y - 1, z);
+
+                    // Spot is air/passable for feet and head
+                    if ((feet.getType().isAir() || !feet.getType().isSolid()) &&
+                        (head.getType().isAir() || !head.getType().isSolid())) {
+
+                        boolean ground = stand.getType().isSolid();
+                        double distSq = dx * dx + dy * dy + dz * dz;
+
+                        if (ground && !foundGround) {
+                            // First time finding a spot with ground, override any spot without ground
+                            bestDistSq = distSq;
+                            bestLoc = new Location(world, x + 0.5, y, z + 0.5);
+                            foundGround = true;
+                        } else if (ground == foundGround) {
+                            // If both have ground (or both do not), take the closest one
+                            if (distSq < bestDistSq) {
+                                bestDistSq = distSq;
+                                bestLoc = new Location(world, x + 0.5, y, z + 0.5);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return bestLoc != null ? bestLoc : target;
+    }
+
+    private org.bukkit.entity.LivingEntity findNearbyHostileMob() {
+        double attackRadius = 3.5;
+        Location loc = player.getLocation();
+        org.bukkit.entity.LivingEntity closest = null;
+        double closestDistSq = Double.MAX_VALUE;
+
+        for (org.bukkit.entity.Entity entity : loc.getWorld().getNearbyEntities(loc, attackRadius, attackRadius, attackRadius)) {
+            if (entity instanceof org.bukkit.entity.Monster || 
+                entity instanceof org.bukkit.entity.Slime || 
+                entity instanceof org.bukkit.entity.Phantom ||
+                entity instanceof org.bukkit.entity.Spider) {
+                
+                if (entity instanceof org.bukkit.entity.LivingEntity living) {
+                    if (!living.isDead() && player.hasLineOfSight(living)) {
+                        double distSq = loc.distanceSquared(living.getLocation());
+                        if (distSq < closestDistSq) {
+                            closestDistSq = distSq;
+                            closest = living;
+                        }
+                    }
+                }
+            }
+        }
+        return closest;
+    }
+
+    private int findBestWeaponSlot() {
+        int bestSlot = -1;
+        double maxDamage = -1.0;
+
+        for (int i = 0; i < 9; i++) {
+            ItemStack item = player.getInventory().getItem(i);
+            if (item == null || item.getAmount() == 0) continue;
+
+            String name = item.getType().name();
+            double dmgValue = 0.0;
+
+            if (name.contains("SWORD")) {
+                dmgValue = 100.0;
+            } else if (name.contains("AXE") && !name.contains("PICKAXE")) {
+                dmgValue = 80.0;
+            } else if (name.contains("PICKAXE")) {
+                dmgValue = 60.0;
+            } else if (name.contains("SHOVEL")) {
+                dmgValue = 40.0;
+            }
+
+            if (name.startsWith("NETHERITE")) {
+                dmgValue += 5.0;
+            } else if (name.startsWith("DIAMOND")) {
+                dmgValue += 4.0;
+            } else if (name.startsWith("IRON")) {
+                dmgValue += 3.0;
+            } else if (name.startsWith("STONE")) {
+                dmgValue += 2.0;
+            } else if (name.startsWith("GOLD")) {
+                dmgValue += 1.0;
+            }
+
+            if (dmgValue > maxDamage) {
+                maxDamage = dmgValue;
+                bestSlot = i;
+            }
+        }
+
+        return bestSlot;
+    }
+
+    private boolean handleDefense() {
+        org.bukkit.entity.LivingEntity target = findNearbyHostileMob();
+        if (target == null) return false;
+
+        int slot = findBestWeaponSlot();
+        if (slot != -1) {
+            if (player.getInventory().getHeldItemSlot() != slot) {
+                player.getInventory().setHeldItemSlot(slot);
+            }
+        }
+
+        Location targetEye = target.getEyeLocation();
+        Location playerEye = player.getEyeLocation();
+        Vector dir = targetEye.toVector().subtract(playerEye.toVector()).normalize();
+        
+        Location look = player.getLocation();
+        look.setDirection(dir);
+        player.teleport(look);
+
+        player.attack(target);
+        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, 1.0f, 1.0f);
+        player.sendActionBar(Component.text("⚔ Fending off " + target.getName() + "!").color(NamedTextColor.RED));
+
+        return true;
     }
 
     private boolean mineBlock(Block block) {
