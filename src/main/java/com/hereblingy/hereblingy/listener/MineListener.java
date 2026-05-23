@@ -52,6 +52,12 @@ public class MineListener implements Listener {
             return;
         }
 
+        // Only allow pickaxe area selection when in TERRAFORMING mode
+        com.hereblingy.hereblingy.config.PlayerMiningConfig playerConfig = configManager.getPlayerConfig(uuid);
+        if (playerConfig.getMiningMode() != com.hereblingy.hereblingy.config.PlayerMiningConfig.MiningMode.TERRAFORMING) {
+            return;
+        }
+
         ItemStack held = player.getInventory().getItemInMainHand();
         if (held == null || !held.getType().name().contains("PICKAXE")) {
             return;

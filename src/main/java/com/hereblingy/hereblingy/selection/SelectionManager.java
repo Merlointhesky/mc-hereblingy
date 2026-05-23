@@ -27,13 +27,13 @@ public class SelectionManager {
 
     public void setPointA(UUID playerId, Location location) {
         Location[] locs = selections.computeIfAbsent(playerId, k -> new Location[2]);
-        locs[0] = location.clone();
+        locs[0] = location != null ? location.clone() : null;
         saveSelection(playerId);
     }
 
     public void setPointB(UUID playerId, Location location) {
         Location[] locs = selections.computeIfAbsent(playerId, k -> new Location[2]);
-        locs[1] = location.clone();
+        locs[1] = location != null ? location.clone() : null;
         saveSelection(playerId);
     }
 
