@@ -111,6 +111,12 @@ public class MineTask extends BukkitRunnable {
     }
 
     @Override
+    public synchronized void cancel() throws IllegalStateException {
+        plugin.getMineTaskManager().removeActiveTask(player.getUniqueId());
+        super.cancel();
+    }
+
+    @Override
     public void run() {
         if (!player.isOnline()) {
             cancel();
@@ -121,6 +127,12 @@ public class MineTask extends BukkitRunnable {
         if (handleDefense()) {
             minePause = 8; // pause auto-mining for 8 ticks to honor weapon sweep cooldown
             return;
+        }
+
+        // 1b. Check food status and eat if below maximum well-fed saturation!
+        if (player.getFoodLevel() < 20) {
+            handleFeeding();
+            if (minePause > 0) return; // return if currently eating
         }
 
         // 1. Inventory Full Check
@@ -399,6 +411,11 @@ public class MineTask extends BukkitRunnable {
         return false;
     }
 
+    private boolean isOreBlock(Material mat) {
+        String name = mat.name();
+        return name.contains("ORE") || mat == Material.ANCIENT_DEBRIS;
+    }
+
     private boolean executeMiningAt(Location loc) {
         boolean broken = false;
 
@@ -422,6 +439,17 @@ public class MineTask extends BukkitRunnable {
                 broken |= mineBlock(head1);
                 broken |= mineBlock(feet2);
                 broken |= mineBlock(head2);
+
+                // Scan and collect ores directly below and above
+                Block floor1 = world.getBlockAt(x1, y - 1, z);
+                Block ceil1 = world.getBlockAt(x1, y + 2, z);
+                Block floor2 = world.getBlockAt(x2, y - 1, z);
+                Block ceil2 = world.getBlockAt(x2, y + 2, z);
+
+                if (isOreBlock(floor1.getType())) broken |= mineBlock(floor1);
+                if (isOreBlock(ceil1.getType())) broken |= mineBlock(ceil1);
+                if (isOreBlock(floor2.getType())) broken |= mineBlock(floor2);
+                if (isOreBlock(ceil2.getType())) broken |= mineBlock(ceil2);
             } else {
                 int z1 = (int) Math.floor(loc.getZ());
                 int z2 = z1 - 1;
@@ -436,12 +464,31 @@ public class MineTask extends BukkitRunnable {
                 broken |= mineBlock(head1);
                 broken |= mineBlock(feet2);
                 broken |= mineBlock(head2);
+
+                // Scan and collect ores directly below and above
+                Block floor1 = world.getBlockAt(x, y - 1, z1);
+                Block ceil1 = world.getBlockAt(x, y + 2, z1);
+                Block floor2 = world.getBlockAt(x, y - 1, z2);
+                Block ceil2 = world.getBlockAt(x, y + 2, z2);
+
+                if (isOreBlock(floor1.getType())) broken |= mineBlock(floor1);
+                if (isOreBlock(ceil1.getType())) broken |= mineBlock(ceil1);
+                if (isOreBlock(floor2.getType())) broken |= mineBlock(floor2);
+                if (isOreBlock(ceil2.getType())) broken |= mineBlock(ceil2);
             }
         } else {
             Block feet = loc.getBlock();
             Block head = loc.clone().add(0, 1, 0).getBlock();
             broken |= mineBlock(feet);
             broken |= mineBlock(head);
+
+            if (isInfiniteMode) {
+                // Scan and collect ores directly below and above in side branches
+                Block floor = loc.clone().add(0, -1, 0).getBlock();
+                Block ceil = loc.clone().add(0, 2, 0).getBlock();
+                if (isOreBlock(floor.getType())) broken |= mineBlock(floor);
+                if (isOreBlock(ceil.getType())) broken |= mineBlock(ceil);
+            }
         }
 
         // 3. Attract drops, apply Mending XP sharing
@@ -460,6 +507,12 @@ public class MineTask extends BukkitRunnable {
         String name = type.name();
         if (name.contains("LOG") || name.contains("LEAVES") || name.contains("WOOD") 
                 || name.contains("STEM") || type == Material.MANGROVE_ROOTS) {
+            return false;
+        }
+
+        // Avoid breaking storage containers ("boxes") to keep items safe
+        if (type == Material.CHEST || type == Material.TRAPPED_CHEST || type == Material.BARREL 
+                || type == Material.ENDER_CHEST || name.contains("SHULKER_BOX")) {
             return false;
         }
 
@@ -918,5 +971,122 @@ public class MineTask extends BukkitRunnable {
         Block feet = loc.getBlock();
         Block head = loc.clone().add(0, 1, 0).getBlock();
         return feet.getType() == Material.COBWEB || head.getType() == Material.COBWEB;
+    }
+
+    private int findFoodSlotInHotbar() {
+        for (int i = 0; i < 9; i++) {
+            ItemStack item = player.getInventory().getItem(i);
+            if (item == null || item.getAmount() == 0) continue;
+
+            Material mat = item.getType();
+            switch (mat) {
+                case COOKED_BEEF:
+                case COOKED_PORKCHOP:
+                case GOLDEN_CARROT:
+                case COOKED_MUTTON:
+                case COOKED_CHICKEN:
+                case COOKED_SALMON:
+                case COOKED_COD:
+                case BAKED_POTATO:
+                case BREAD:
+                case GOLDEN_APPLE:
+                case ENCHANTED_GOLDEN_APPLE:
+                case APPLE:
+                case CARROT:
+                case COOKED_RABBIT:
+                case MELON_SLICE:
+                case COOKIE:
+                case SWEET_BERRIES:
+                case GLOW_BERRIES:
+                    return i;
+                default:
+                    break;
+            }
+        }
+        return -1;
+    }
+
+    private void handleFeeding() {
+        if (player.getFoodLevel() >= 20) {
+            return;
+        }
+
+        int foodSlot = findFoodSlotInHotbar();
+        if (foodSlot == -1) {
+            return;
+        }
+
+        ItemStack foodStack = player.getInventory().getItem(foodSlot);
+        Material foodType = foodStack.getType();
+
+        // Define food restoration values (Food points, Saturation points)
+        int hungerRestore = 4;
+        float saturationRestore = 6.0f;
+
+        switch (foodType) {
+            case COOKED_BEEF, COOKED_PORKCHOP, PUMPKIN_PIE -> {
+                hungerRestore = 8;
+                saturationRestore = 12.8f;
+            }
+            case GOLDEN_CARROT -> {
+                hungerRestore = 6;
+                saturationRestore = 14.4f;
+            }
+            case COOKED_MUTTON, COOKED_SALMON -> {
+                hungerRestore = 6;
+                saturationRestore = 9.6f;
+            }
+            case COOKED_CHICKEN -> {
+                hungerRestore = 6;
+                saturationRestore = 7.2f;
+            }
+            case COOKED_COD, BAKED_POTATO, BREAD -> {
+                hungerRestore = 5;
+                saturationRestore = 6.0f;
+            }
+            case GOLDEN_APPLE, ENCHANTED_GOLDEN_APPLE -> {
+                hungerRestore = 4;
+                saturationRestore = 9.6f;
+                // Add golden apple potion effects
+                player.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.REGENERATION, 100, 1));
+                player.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.ABSORPTION, 2400, 0));
+            }
+            case APPLE, CARROT -> {
+                hungerRestore = 4;
+                saturationRestore = 2.4f;
+            }
+            case COOKED_RABBIT -> {
+                hungerRestore = 5;
+                saturationRestore = 6.0f;
+            }
+            case MELON_SLICE, COOKIE, SWEET_BERRIES, GLOW_BERRIES -> {
+                hungerRestore = 2;
+                saturationRestore = 1.2f;
+            }
+            default -> {
+                break;
+            }
+        }
+
+        // Consume 1 food item from slot
+        if (player.getGameMode() != org.bukkit.GameMode.CREATIVE) {
+            foodStack.setAmount(foodStack.getAmount() - 1);
+            player.getInventory().setItem(foodSlot, foodStack.getAmount() > 0 ? foodStack : null);
+            player.updateInventory();
+        }
+
+        // Apply food and saturation
+        int newFood = Math.min(20, player.getFoodLevel() + hungerRestore);
+        float newSat = Math.min(20.0f, player.getSaturation() + saturationRestore);
+        player.setFoodLevel(newFood);
+        player.setSaturation(newSat);
+
+        // Play eating and burp sound
+        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_BURP, 0.6f, 1.2f);
+        player.playSound(player.getLocation(), Sound.ENTITY_GENERIC_EAT, 0.8f, 1.0f);
+        player.sendActionBar(Component.text("😋 Consumed " + formatMaterialName(foodType) + " to keep well-fed!").color(NamedTextColor.GREEN));
+
+        // Pause briefly (e.g. 15 ticks) to simulate eating animation/cooldown
+        minePause = 15;
     }
 }

@@ -69,8 +69,8 @@ public class HereBlingyCommand implements CommandExecutor {
 
     private void handleStart(Player player, String[] args) {
         if (mineTaskManager.isMining(player)) {
-            player.sendMessage(Component.text("Auto-mining is already running!").color(NamedTextColor.YELLOW));
-            return;
+            player.sendMessage(Component.text("Stopping previous mining run...").color(NamedTextColor.YELLOW));
+            mineTaskManager.stopTask(player);
         }
 
         com.hereblingy.hereblingy.config.PlayerMiningConfig playerConfig = configManager.getPlayerConfig(player.getUniqueId());

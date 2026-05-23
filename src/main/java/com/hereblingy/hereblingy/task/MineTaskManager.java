@@ -43,6 +43,10 @@ public class MineTaskManager {
         }
     }
 
+    public void removeActiveTask(UUID playerId) {
+        activeTasks.remove(playerId);
+    }
+
     public void recordDurabilityStop(Player player, int index) {
         lastStopIndices.put(player.getUniqueId(), index);
     }
