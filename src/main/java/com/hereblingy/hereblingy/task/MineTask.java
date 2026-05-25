@@ -267,8 +267,12 @@ public class MineTask extends BukkitRunnable {
         }
 
         if (stuckTicks >= STUCK_TICK_THRESHOLD) {
-            teleportToTarget(current, target);
+            // Bypass stuck block and continue to the next path node
+            currentIndex = (currentIndex + 1) % path.size();
+            Location nextTarget = path.get(currentIndex);
+            teleportToTarget(current, nextTarget);
             stuckTicks = 0;
+            player.sendMessage(Component.text("Bypassed stuck coordinate and continuing to next path point...").color(NamedTextColor.YELLOW));
             return;
         }
 
@@ -993,7 +997,14 @@ public class MineTask extends BukkitRunnable {
             depositIntoChest(stack, true);
         } else if (dest == MiningSettings.Destination.TRASH_CHEST) {
             minedDebris.put(mat, minedDebris.getOrDefault(mat, 0) + stack.getAmount());
-            depositIntoChest(stack, false);
+            // Try to keep in player's inventory first so they are available to plug leaks in an emergency.
+            HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(stack);
+            if (!leftover.isEmpty()) {
+                // If inventory overflows, deposit the leftovers into the trash chest.
+                for (ItemStack overflowStack : leftover.values()) {
+                    depositIntoChest(overflowStack, false);
+                }
+            }
         } else {
             // Keep in inventory
             HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(stack);
