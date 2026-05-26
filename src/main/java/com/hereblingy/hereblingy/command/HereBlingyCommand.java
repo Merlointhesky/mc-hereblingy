@@ -18,6 +18,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.List;
+import java.util.UUID;
 
 public class HereBlingyCommand implements CommandExecutor {
 
@@ -61,6 +62,7 @@ public class HereBlingyCommand implements CommandExecutor {
             case "clear" -> handleClear(player);
             case "setup" -> handleSetup(player);
             case "config" -> handleConfig(player);
+            case "select" -> handleSelect(player);
             default -> sendHelp(player);
         }
 
@@ -112,8 +114,10 @@ public class HereBlingyCommand implements CommandExecutor {
         } else {
             // Bounded 3D Terraforming / Land Clearing Mode (Ignoring Trees/Hubris)
             if (!selectionManager.hasCompleteSelection(player.getUniqueId())) {
-                player.sendMessage(Component.text("Please select a 3D area first (Shift-Right-Click Point A and Point B with a pickaxe).")
-                        .color(NamedTextColor.RED));
+                selectionManager.setSelectionMode(player.getUniqueId(), true);
+                player.sendMessage(Component.text("Selection missing! Selection Mode has been automatically enabled.")
+                        .color(NamedTextColor.YELLOW)
+                        .append(Component.text("\nShift-right-click with a pickaxe to set Point A and Point B.").color(NamedTextColor.GREEN)));
                 return;
             }
 
@@ -219,6 +223,19 @@ public class HereBlingyCommand implements CommandExecutor {
         configUI.openMainMenu(player);
     }
 
+    private void handleSelect(Player player) {
+        UUID uuid = player.getUniqueId();
+        boolean currentMode = selectionManager.isSelectionMode(uuid);
+        selectionManager.setSelectionMode(uuid, !currentMode);
+        if (!currentMode) {
+            player.sendMessage(Component.text("Selection Mode ENABLED! Hold a Pickaxe and Shift-Right-Click two blocks to set Point A and Point B.")
+                    .color(NamedTextColor.GREEN));
+        } else {
+            player.sendMessage(Component.text("Selection Mode DISABLED.")
+                    .color(NamedTextColor.YELLOW));
+        }
+    }
+
     private void sendHelp(Player player) {
         player.sendMessage(Component.text("-----------------------------------").color(NamedTextColor.GRAY));
         player.sendMessage(Component.text("       HereBlingy Command Help       ").color(NamedTextColor.GOLD));
@@ -229,6 +246,7 @@ public class HereBlingyCommand implements CommandExecutor {
         player.sendMessage(Component.text(" /hb config - Open chest storage configuration GUI").color(NamedTextColor.YELLOW));
         player.sendMessage(Component.text(" /hb setup - Run chest deposit & supply wizard").color(NamedTextColor.YELLOW));
         player.sendMessage(Component.text(" /hb clear - Reset all selections, routes, and pauses").color(NamedTextColor.YELLOW));
+        player.sendMessage(Component.text(" /hb select - Toggle pickaxe selection mode for terraforming").color(NamedTextColor.YELLOW));
         player.sendMessage(Component.text("-----------------------------------").color(NamedTextColor.GRAY));
     }
 }

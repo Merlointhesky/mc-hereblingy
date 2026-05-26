@@ -8,7 +8,9 @@ import org.bukkit.plugin.Plugin;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public class SelectionManager {
@@ -16,12 +18,25 @@ public class SelectionManager {
     private final Plugin plugin;
     private final File selectionDir;
     private final Map<UUID, Location[]> selections = new HashMap<>();
+    private final Set<UUID> selectionModePlayers = new HashSet<>();
 
     public SelectionManager(Plugin plugin) {
         this.plugin = plugin;
         this.selectionDir = new File(plugin.getDataFolder(), "selections");
         if (!selectionDir.exists()) {
             selectionDir.mkdirs();
+        }
+    }
+
+    public boolean isSelectionMode(UUID playerId) {
+        return selectionModePlayers.contains(playerId);
+    }
+
+    public void setSelectionMode(UUID playerId, boolean active) {
+        if (active) {
+            selectionModePlayers.add(playerId);
+        } else {
+            selectionModePlayers.remove(playerId);
         }
     }
 

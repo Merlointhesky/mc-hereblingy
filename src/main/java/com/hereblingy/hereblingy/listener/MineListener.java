@@ -52,9 +52,8 @@ public class MineListener implements Listener {
             return;
         }
 
-        // Only allow pickaxe area selection when in TERRAFORMING mode
-        com.hereblingy.hereblingy.config.PlayerMiningConfig playerConfig = configManager.getPlayerConfig(uuid);
-        if (playerConfig.getMiningMode() != com.hereblingy.hereblingy.config.PlayerMiningConfig.MiningMode.TERRAFORMING) {
+        // Only allow selection if the player is explicitly in Selection Mode
+        if (!selectionManager.isSelectionMode(uuid)) {
             return;
         }
 
@@ -86,8 +85,9 @@ public class MineListener implements Listener {
         } else {
             // Second point selection
             selectionManager.setPointB(uuid, loc);
+            selectionManager.setSelectionMode(uuid, false); // Disable selection mode once selection is complete
             player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.8f, 1.2f);
-            player.sendMessage(Component.text("★ HereBlingy Selection: Point B set at [" + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + "]. Selection complete!")
+            player.sendMessage(Component.text("★ HereBlingy Selection: Point B set at [" + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + "]. Selection complete, selection mode disabled!")
                     .color(NamedTextColor.GREEN));
 
             // Trigger scan and print stats
