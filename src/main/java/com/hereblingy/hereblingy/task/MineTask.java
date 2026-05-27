@@ -68,6 +68,10 @@ public class MineTask extends BukkitRunnable {
     private int refuelsCount = 0;
     private int leaksPluggedCount = 0;
 
+    // Teleport retry/loop detection fields
+    private Location lastTeleportDest = null;
+    private int teleportRetryCount = 0;
+
     public MineTask(HereBlingyPlugin plugin, Player player, List<Location> path,
                     AuraSkillsHelper auraSkillsHelper, ScanResult scanResult) {
         this.plugin = plugin;
@@ -114,6 +118,7 @@ public class MineTask extends BukkitRunnable {
     public synchronized void cancel() throws IllegalStateException {
         plugin.getMineTaskManager().removeActiveTask(player.getUniqueId());
         super.cancel();
+        plugin.getMineTaskManager().startAutoDefense(player);
     }
 
     @Override
@@ -310,6 +315,21 @@ public class MineTask extends BukkitRunnable {
         Location snap = safeTarget.clone();
         snap.setPitch(current.getPitch());
         snap.setYaw(current.getYaw());
+
+        // Duplicate teleport loop detection
+        if (lastTeleportDest != null && lastTeleportDest.getWorld() == snap.getWorld() && lastTeleportDest.distanceSquared(snap) < 0.01) {
+            teleportRetryCount++;
+            if (teleportRetryCount >= 3) {
+                currentIndex = (currentIndex + 1) % path.size();
+                teleportRetryCount = 0;
+                player.sendMessage(Component.text("⚠️ Bypassed infinite teleport loop and continuing...").color(NamedTextColor.YELLOW));
+                return;
+            }
+        } else {
+            lastTeleportDest = snap.clone();
+            teleportRetryCount = 0;
+        }
+
         player.teleport(snap);
     }
 
@@ -458,8 +478,10 @@ public class MineTask extends BukkitRunnable {
 
     private boolean mineBlockWithoutVein(Block block) {
         if (isSolidAndMineable(block)) {
-            if (verifyToolAndDurability(block.getType())) {
+            Material type = block.getType();
+            if (verifyToolAndDurability(type)) {
                 block.breakNaturally(player.getInventory().getItemInMainHand());
+                auraSkillsHelper.addMiningXp(player, auraSkillsHelper.getBaseXpForBlock(type));
                 return true;
             }
         }
@@ -471,6 +493,7 @@ public class MineTask extends BukkitRunnable {
         if (isSolidAndMineable(block)) {
             if (verifyToolAndDurability(type)) {
                 block.breakNaturally(player.getInventory().getItemInMainHand());
+                auraSkillsHelper.addMiningXp(player, auraSkillsHelper.getBaseXpForBlock(type));
                 if (isOreBlock(type)) {
                     mineVein(block, type);
                 }
@@ -1058,7 +1081,7 @@ public class MineTask extends BukkitRunnable {
             if (item == null || item.getType().isAir()) continue;
 
             Material mat = item.getType();
-            if (mat.name().contains("PICKAXE") || mat.name().contains("SHOVEL")) continue; // Keep tools
+            if (isProtectedItem(mat)) continue; // Keep vital survival gear/tools
 
             MiningSettings.Destination dest = configManager.getDestination(player.getUniqueId(), mat);
             if (dest == MiningSettings.Destination.INVENTORY) continue;
@@ -1258,5 +1281,162 @@ public class MineTask extends BukkitRunnable {
 
         // Pause briefly (e.g. 15 ticks) to simulate eating animation/cooldown
         minePause = 15;
+    }
+
+    public void handleSuffocationRescue() {
+        Location current = player.getLocation();
+        World world = current.getWorld();
+        if (world == null) return;
+
+        player.sendMessage(Component.text("⚠️ You are suffocating! Activating emergency rescue...").color(NamedTextColor.RED));
+
+        int px = current.getBlockX();
+        int py = current.getBlockY();
+        int pz = current.getBlockZ();
+
+        // 1. Eliminate any suffocating debris in a 5x5x5 area around the player
+        int radius = 2; // dx/dz in [-2, 2], dy in [-1, 3]
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dy = -1; dy <= 3; dy++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    Block block = world.getBlockAt(px + dx, py + dy, pz + dz);
+                    if (isRescueClearable(block)) {
+                        block.breakNaturally();
+                    }
+                }
+            }
+        }
+
+        // 2. Find the next available safe spot and teleport
+        // Candidate 1: Try path coordinates starting from the current index
+        if (!path.isEmpty()) {
+            for (int i = 0; i < path.size(); i++) {
+                int index = (currentIndex + i) % path.size();
+                Location node = path.get(index);
+                if (isSafeStandLocation(world, node.getBlockX(), node.getBlockY(), node.getBlockZ())) {
+                    Location safeLoc = node.clone().add(0.5, 0.0, 0.5);
+                    safeLoc.setPitch(current.getPitch());
+                    safeLoc.setYaw(current.getYaw());
+                    player.teleport(safeLoc);
+                    currentIndex = index; // Move index to the safe spot we teleported to!
+                    player.sendMessage(Component.text("✔ Teleported to a safe spot along the path!").color(NamedTextColor.GREEN));
+                    return;
+                }
+            }
+        }
+
+        // Candidate 2: Spiral search around current location
+        Location safeSpot = null;
+        for (int r = 1; r <= 8; r++) {
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    if (Math.abs(dx) != r && Math.abs(dz) != r) continue;
+
+                    for (int dy = -3; dy <= 3; dy++) {
+                        int tx = px + dx;
+                        int ty = py + dy;
+                        int tz = pz + dz;
+
+                        if (isSafeStandLocation(world, tx, ty, tz)) {
+                            safeSpot = new Location(world, tx + 0.5, ty, tz + 0.5);
+                            break;
+                        }
+                    }
+                    if (safeSpot != null) break;
+                }
+                if (safeSpot != null) break;
+            }
+            if (safeSpot != null) break;
+        }
+
+        if (safeSpot != null) {
+            safeSpot.setPitch(current.getPitch());
+            safeSpot.setYaw(current.getYaw());
+            player.teleport(safeSpot);
+            currentIndex = findClosestPathIndex(safeSpot);
+            player.sendMessage(Component.text("✔ Teleported to a nearby safe spot!").color(NamedTextColor.GREEN));
+        } else {
+            // Fallback: teleport to the highest safe block at player's current X/Z
+            int highestY = world.getHighestBlockYAt(px, pz);
+            Location fallback = new Location(world, px + 0.5, highestY + 1.0, pz + 0.5);
+            fallback.setPitch(current.getPitch());
+            fallback.setYaw(current.getYaw());
+            player.teleport(fallback);
+            currentIndex = findClosestPathIndex(fallback);
+            player.sendMessage(Component.text("✔ Teleported to surface safety!").color(NamedTextColor.GREEN));
+        }
+    }
+
+    private boolean isRescueClearable(Block block) {
+        Material type = block.getType();
+        if (type.isAir() || !type.isSolid()) return false;
+        if (type == Material.BEDROCK || type == Material.SPAWNER) return false;
+        String name = type.name();
+        if (type == Material.CHEST || type == Material.TRAPPED_CHEST || type == Material.BARREL 
+                || type == Material.ENDER_CHEST || name.contains("SHULKER_BOX")) return false;
+        return true;
+    }
+
+    private boolean isSafeStandLocation(World world, int x, int y, int z) {
+        Block feet = world.getBlockAt(x, y, z);
+        Block head = world.getBlockAt(x, y + 1, z);
+        Block ground = world.getBlockAt(x, y - 1, z);
+        
+        return (feet.getType().isAir() || !feet.getType().isSolid()) &&
+               (head.getType().isAir() || !head.getType().isSolid()) &&
+               ground.getType().isSolid();
+    }
+
+    private int findClosestPathIndex(Location loc) {
+        if (path.isEmpty()) return 0;
+        int closestIndex = 0;
+        double minDistSq = Double.MAX_VALUE;
+        for (int i = 0; i < path.size(); i++) {
+            double distSq = path.get(i).distanceSquared(loc);
+            if (distSq < minDistSq) {
+                minDistSq = distSq;
+                closestIndex = i;
+            }
+        }
+        return closestIndex;
+    }
+
+    private boolean isProtectedItem(Material mat) {
+        if (mat.isEdible()) return true;
+        
+        String name = mat.name();
+        
+        // Protect Weapons, Tools, & Combat/Survival Gear
+        if (name.contains("SWORD") || name.contains("AXE") || name.contains("PICKAXE") 
+                || name.contains("SHOVEL") || name.contains("HOE") || name.contains("HELMET") 
+                || name.contains("CHESTPLATE") || name.contains("LEGGINGS") || name.contains("BOOTS") 
+                || name.contains("SHIELD") || name.contains("BOW") || name.contains("CROSSBOW") 
+                || name.contains("TRIDENT") || name.contains("MACE") || mat == Material.SHEARS 
+                || mat == Material.FISHING_ROD || mat == Material.FLINT_AND_STEEL || mat == Material.BRUSH 
+                || mat == Material.SPYGLASS || mat == Material.LEAD) {
+            return true;
+        }
+        
+        // Protect high-value survival & portable storage utility items
+        if (mat == Material.TOTEM_OF_UNDYING || mat == Material.ENDER_CHEST 
+                || name.contains("SHULKER_BOX")) {
+            return true;
+        }
+        
+        // Protect survival buckets & specialty fluids
+        if (mat == Material.MILK_BUCKET || mat == Material.WATER_BUCKET 
+                || mat == Material.LAVA_BUCKET || mat == Material.BUCKET 
+                || mat == Material.HONEY_BOTTLE || mat == Material.POTION 
+                || mat == Material.SPLASH_POTION || mat == Material.LINGERING_POTION) {
+            return true;
+        }
+        
+        // Protect basic lighting utilities
+        if (name.contains("TORCH") || name.contains("LANTERN") || name.contains("CAMPFIRE") 
+                || mat == Material.GLOWSTONE || mat == Material.SEA_LANTERN) {
+            return true;
+        }
+        
+        return false;
     }
 }

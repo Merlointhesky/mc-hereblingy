@@ -4,6 +4,7 @@ import dev.aurelium.auraskills.api.AuraSkillsApi;
 import dev.aurelium.auraskills.api.skill.Skills;
 import dev.aurelium.auraskills.api.user.SkillsUser;
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 
 public class AuraSkillsHelper {
@@ -73,5 +74,34 @@ public class AuraSkillsHelper {
         } catch (Exception e) {
             // ignore
         }
+    }
+
+    public double getBaseXpForBlock(Material material) {
+        String name = material.name();
+        if (name.contains("DIAMOND_ORE") || name.contains("EMERALD_ORE")) {
+            return 30.0;
+        } else if (material == Material.ANCIENT_DEBRIS) {
+            return 50.0;
+        } else if (name.contains("GOLD_ORE")) {
+            return 10.0;
+        } else if (name.contains("REDSTONE_ORE")) {
+            return 10.0;
+        } else if (name.contains("LAPIS_ORE")) {
+            return 12.0;
+        } else if (name.contains("IRON_ORE") || name.contains("COPPER_ORE")) {
+            return 7.0;
+        } else if (name.contains("COAL_ORE") || name.contains("NETHER_QUARTZ_ORE")) {
+            return 5.0;
+        } else if (material == Material.OBSIDIAN) {
+            return 20.0;
+        } else if (material == Material.STONE || material == Material.COBBLESTONE 
+                || material == Material.DEEPSLATE || material == Material.COBBLED_DEEPSLATE
+                || material == Material.NETHERRACK || material == Material.SANDSTONE 
+                || material == Material.RED_SANDSTONE || name.contains("TUFF") || name.contains("DIORITE") 
+                || name.contains("ANDESITE") || name.contains("GRANITE") || name.contains("BASALT") 
+                || name.contains("BLACKSTONE")) {
+            return 0.5;
+        }
+        return 0.2; // default small XP for other mined blocks
     }
 }
