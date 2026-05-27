@@ -1,0 +1,25 @@
+name: HereBlingy
+version: '1.0.0'
+main: com.hereblingy.hereblingy.HereBlingyPlugin
+description: Premium Paper auto-mining plugin with dynamic strip-mining and AuraSkills integration
+api-version: '1.21'
+author: Antigravity
+softdepend: [AuraSkills]
+
+commands:
+  hereblingy:
+    description: Main command for HereBlingy auto-mining
+    usage: /hereblingy <start|stop|restart|clear|setup|config>
+    permission: hereblingy.use
+    aliases: [hb]
+
+permissions:
+  hereblingy.use:
+    description: Allows use of the hereblingy command
+    default: true
+  hereblingy.setup:
+    description: Allows use of the setup wizard
+    default: true
+  hereblingy.config:
+    description: Allows use of the mining configuration UI
+    default: true
