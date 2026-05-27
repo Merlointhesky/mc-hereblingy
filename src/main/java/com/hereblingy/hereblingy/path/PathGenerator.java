@@ -117,33 +117,44 @@ public class PathGenerator {
         int maxZ = Math.max(pointA.getBlockZ(), pointB.getBlockZ());
 
         boolean reverseLayer = false;
+        int lastY = -1;
+        
         // Step down vertically by 2 blocks (height of a player), making Y progression safe
         for (int y = maxY - 1; y >= minY; y -= 2) {
-            List<Location> layerPath = new ArrayList<>();
-            boolean goingForwardZ = true;
-
-            for (int z = minZ; z <= maxZ; z++) {
-                if (goingForwardZ) {
-                    for (int x = minX; x <= maxX; x++) {
-                        layerPath.add(new Location(world, x + 0.5, y, z + 0.5));
-                    }
-                } else {
-                    for (int x = maxX; x >= minX; x--) {
-                        layerPath.add(new Location(world, x + 0.5, y, z + 0.5));
-                    }
-                }
-                goingForwardZ = !goingForwardZ;
-            }
-
-            if (reverseLayer) {
-                // Reverse the entire slice to start where the previous slice ended
-                java.util.Collections.reverse(layerPath);
-            }
-            path.addAll(layerPath);
+            lastY = y;
+            addLayer(path, world, minX, maxX, minZ, maxZ, y, reverseLayer);
             reverseLayer = !reverseLayer;
         }
 
+        // If the bottom Y layer (minY) was not reached/cleared, append a final layer at minY
+        if (lastY == -1 || lastY > minY) {
+            addLayer(path, world, minX, maxX, minZ, maxZ, minY, reverseLayer);
+        }
+
         return path;
+    }
+
+    private static void addLayer(List<Location> path, World world, int minX, int maxX, int minZ, int maxZ, int y, boolean reverseLayer) {
+        List<Location> layerPath = new ArrayList<>();
+        boolean goingForwardZ = true;
+
+        for (int z = minZ; z <= maxZ; z++) {
+            if (goingForwardZ) {
+                for (int x = minX; x <= maxX; x++) {
+                    layerPath.add(new Location(world, x + 0.5, y, z + 0.5));
+                }
+            } else {
+                for (int x = maxX; x >= minX; x--) {
+                    layerPath.add(new Location(world, x + 0.5, y, z + 0.5));
+                }
+            }
+            goingForwardZ = !goingForwardZ;
+        }
+
+        if (reverseLayer) {
+            java.util.Collections.reverse(layerPath);
+        }
+        path.addAll(layerPath);
     }
 
     public static int findClosestIndex(List<Location> path, Location target) {

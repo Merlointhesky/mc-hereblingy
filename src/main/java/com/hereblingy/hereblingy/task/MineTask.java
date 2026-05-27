@@ -492,6 +492,10 @@ public class MineTask extends BukkitRunnable {
                 } else {
                     auraSkillsHelper.addMiningXp(player, auraSkillsHelper.getBaseXpForBlock(type));
                 }
+                
+                teleportRetryCount = 0;
+                lastTeleportDest = null;
+                
                 return true;
             }
         }
@@ -512,6 +516,9 @@ public class MineTask extends BukkitRunnable {
                 } else {
                     auraSkillsHelper.addMiningXp(player, auraSkillsHelper.getBaseXpForBlock(type));
                 }
+                
+                teleportRetryCount = 0;
+                lastTeleportDest = null;
                 
                 if (isOreBlock(type)) {
                     mineVein(block, type);
