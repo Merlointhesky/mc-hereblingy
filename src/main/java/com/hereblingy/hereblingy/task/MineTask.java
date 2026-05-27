@@ -165,16 +165,14 @@ public class MineTask extends BukkitRunnable {
             return;
         }
 
-        // 2b. Skip cobwebs to avoid entering cobweb areas!
-        while (currentIndex < path.size() && isCobwebAt(path.get(currentIndex))) {
-            currentIndex++;
-            if (currentIndex >= path.size()) {
-                sendActivitySummary();
-                player.sendMessage(Component.text("Auto-mining run completed successfully!").color(NamedTextColor.GREEN));
-                cancel();
-                return;
-            }
-            player.sendActionBar(Component.text("Avoiding and bypassing cobweb area...").color(NamedTextColor.YELLOW));
+        // Skip cobwebs and all empty space/non-mineable coordinates to avoid walking around doing nothing!
+        advanceToNextMineableCoordinate();
+
+        if (currentIndex >= path.size()) {
+            sendActivitySummary();
+            player.sendMessage(Component.text("Auto-mining run completed successfully!").color(NamedTextColor.GREEN));
+            cancel();
+            return;
         }
 
         Location target = path.get(currentIndex);
@@ -232,10 +230,13 @@ public class MineTask extends BukkitRunnable {
             }
         }
 
-        // Check if player has fallen down a mountain or is too far from target, immediately teleport back
-        double dx = target.getX() - current.getX();
-        double dy = target.getY() - current.getY();
-        double dz = target.getZ() - current.getZ();
+        // Determine the safe standing spot for the target coordinate
+        Location safeTarget = findSafeTeleportLocation(target);
+
+        // Check if player has fallen down a mountain or is too far from safe target, immediately teleport back
+        double dx = safeTarget.getX() - current.getX();
+        double dy = safeTarget.getY() - current.getY();
+        double dz = safeTarget.getZ() - current.getZ();
         double totalDist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
         if (totalDist > MAX_DIRECT_STEP_DISTANCE) {
@@ -304,7 +305,8 @@ public class MineTask extends BukkitRunnable {
         } else {
             // Move player towards target using velocity (safely walking through already cleared air)
             Vector direction = new Vector(dx, dy, dz).normalize();
-            double speedMultiplier = 1.0 + (auraSkillsHelper.getMiningLevel(player) * 0.008);
+            boolean isShovel = isShovelWorthy(target.getBlock().getType());
+            double speedMultiplier = 1.0 + (auraSkillsHelper.getSpeedBonus(player, isShovel) * 0.008);
             Vector velocity = direction.multiply(SPEED * speedMultiplier);
             player.setVelocity(velocity);
         }
@@ -480,8 +482,16 @@ public class MineTask extends BukkitRunnable {
         if (isSolidAndMineable(block)) {
             Material type = block.getType();
             if (verifyToolAndDurability(type)) {
-                block.breakNaturally(player.getInventory().getItemInMainHand());
-                auraSkillsHelper.addMiningXp(player, auraSkillsHelper.getBaseXpForBlock(type));
+                ItemStack tool = player.getInventory().getItemInMainHand();
+                applyExtraDrops(block, type);
+                block.breakNaturally(tool);
+                
+                boolean isShovel = isShovelWorthy(type);
+                if (isShovel) {
+                    auraSkillsHelper.addExcavationXp(player, auraSkillsHelper.getBaseXpForExcavationBlock(type));
+                } else {
+                    auraSkillsHelper.addMiningXp(player, auraSkillsHelper.getBaseXpForBlock(type));
+                }
                 return true;
             }
         }
@@ -492,8 +502,17 @@ public class MineTask extends BukkitRunnable {
         Material type = block.getType();
         if (isSolidAndMineable(block)) {
             if (verifyToolAndDurability(type)) {
-                block.breakNaturally(player.getInventory().getItemInMainHand());
-                auraSkillsHelper.addMiningXp(player, auraSkillsHelper.getBaseXpForBlock(type));
+                ItemStack tool = player.getInventory().getItemInMainHand();
+                applyExtraDrops(block, type);
+                block.breakNaturally(tool);
+                
+                boolean isShovel = isShovelWorthy(type);
+                if (isShovel) {
+                    auraSkillsHelper.addExcavationXp(player, auraSkillsHelper.getBaseXpForExcavationBlock(type));
+                } else {
+                    auraSkillsHelper.addMiningXp(player, auraSkillsHelper.getBaseXpForBlock(type));
+                }
+                
                 if (isOreBlock(type)) {
                     mineVein(block, type);
                 }
@@ -501,6 +520,27 @@ public class MineTask extends BukkitRunnable {
             }
         }
         return false;
+    }
+
+    private void applyExtraDrops(Block block, Material type) {
+        if (!auraSkillsHelper.isAvailable()) return;
+        try {
+            ItemStack tool = player.getInventory().getItemInMainHand();
+            boolean isShovel = isShovelWorthy(type);
+            int dropMultiplier = auraSkillsHelper.getDropMultiplier(player, isShovel);
+            if (dropMultiplier > 1) {
+                java.util.Collection<ItemStack> drops = block.getDrops(tool, player);
+                if (drops != null) {
+                    for (ItemStack drop : drops) {
+                        ItemStack extra = drop.clone();
+                        extra.setAmount(drop.getAmount() * (dropMultiplier - 1));
+                        block.getWorld().dropItemNaturally(block.getLocation(), extra);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // ignore
+        }
     }
 
     private boolean isSameOreType(Material m1, Material m2) {
@@ -943,8 +983,14 @@ public class MineTask extends BukkitRunnable {
                         player.giveExp(leftoverXp);
                     }
 
-                    // Gain AuraSkills Mining experience
-                    auraSkillsHelper.addMiningXp(player, xp * 2.0);
+                    // Gain AuraSkills experience
+                    ItemStack heldItem = player.getInventory().getItemInMainHand();
+                    boolean isShovel = heldItem != null && heldItem.getType().name().contains("SHOVEL");
+                    if (isShovel) {
+                        auraSkillsHelper.addExcavationXp(player, xp * 2.0);
+                    } else {
+                        auraSkillsHelper.addMiningXp(player, xp * 2.0);
+                    }
 
                     player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.4f, 1.2f);
                     orb.remove();
@@ -1437,6 +1483,120 @@ public class MineTask extends BukkitRunnable {
             return true;
         }
         
+        return false;
+    }
+
+    private void advanceToNextMineableCoordinate() {
+        while (currentIndex < path.size()) {
+            Location loc = path.get(currentIndex);
+            if (isCobwebAt(loc)) {
+                currentIndex++;
+                continue;
+            }
+            if (hasMineableBlocksAt(loc)) {
+                break;
+            }
+            // If in infinite mode and getting close to the end, extend the path dynamically!
+            if (isInfiniteMode && currentIndex >= path.size() - 6) {
+                List<Location> nextSeg = PathGenerator.generateDynamicSegment(startLoc, facing, lengthGenerated, 8, branchWidth);
+                path.addAll(nextSeg);
+                lengthGenerated += 8;
+            }
+            currentIndex++;
+        }
+    }
+
+    private boolean hasMineableBlocksAt(Location loc) {
+        boolean isMainTunnel = (loc.getX() == Math.floor(loc.getX())) || (loc.getZ() == Math.floor(loc.getZ()));
+        if (isInfiniteMode && isMainTunnel) {
+            World world = loc.getWorld();
+            int y = loc.getBlockY();
+            boolean isNorthSouth = (loc.getX() == Math.floor(loc.getX()));
+
+            if (isNorthSouth) {
+                int x1 = (int) Math.floor(loc.getX());
+                int x2 = x1 - 1;
+                int z = loc.getBlockZ();
+
+                if (isSolidAndMineable(world.getBlockAt(x1, y, z))) return true;
+                if (isSolidAndMineable(world.getBlockAt(x1, y + 1, z))) return true;
+                if (isSolidAndMineable(world.getBlockAt(x2, y, z))) return true;
+                if (isSolidAndMineable(world.getBlockAt(x2, y + 1, z))) return true;
+
+                // floor and ceil
+                Block floor1 = world.getBlockAt(x1, y - 1, z);
+                Block ceil1 = world.getBlockAt(x1, y + 2, z);
+                Block floor2 = world.getBlockAt(x2, y - 1, z);
+                Block ceil2 = world.getBlockAt(x2, y + 2, z);
+
+                if (isOreBlock(floor1.getType()) && isSolidAndMineable(floor1)) return true;
+                if (isOreBlock(ceil1.getType()) && isSolidAndMineable(ceil1)) return true;
+                if (isOreBlock(floor2.getType()) && isSolidAndMineable(floor2)) return true;
+                if (isOreBlock(ceil2.getType()) && isSolidAndMineable(ceil2)) return true;
+
+                // sides
+                if (hasOreSides(world, x1, y, z)) return true;
+                if (hasOreSides(world, x2, y, z)) return true;
+            } else {
+                int z1 = (int) Math.floor(loc.getZ());
+                int z2 = z1 - 1;
+                int x = loc.getBlockX();
+
+                if (isSolidAndMineable(world.getBlockAt(x, y, z1))) return true;
+                if (isSolidAndMineable(world.getBlockAt(x, y + 1, z1))) return true;
+                if (isSolidAndMineable(world.getBlockAt(x, y, z2))) return true;
+                if (isSolidAndMineable(world.getBlockAt(x, y + 1, z2))) return true;
+
+                // floor and ceil
+                Block floor1 = world.getBlockAt(x, y - 1, z1);
+                Block ceil1 = world.getBlockAt(x, y + 2, z1);
+                Block floor2 = world.getBlockAt(x, y - 1, z2);
+                Block ceil2 = world.getBlockAt(x, y + 2, z2);
+
+                if (isOreBlock(floor1.getType()) && isSolidAndMineable(floor1)) return true;
+                if (isOreBlock(ceil1.getType()) && isSolidAndMineable(ceil1)) return true;
+                if (isOreBlock(floor2.getType()) && isSolidAndMineable(floor2)) return true;
+                if (isOreBlock(ceil2.getType()) && isSolidAndMineable(ceil2)) return true;
+
+                // sides
+                if (hasOreSides(world, x, y, z1)) return true;
+                if (hasOreSides(world, x, y, z2)) return true;
+            }
+        } else {
+            Block feet = loc.getBlock();
+            Block head = loc.clone().add(0, 1, 0).getBlock();
+            if (isSolidAndMineable(feet)) return true;
+            if (isSolidAndMineable(head)) return true;
+
+            if (isInfiniteMode) {
+                Block floor = loc.clone().add(0, -1, 0).getBlock();
+                Block ceil = loc.clone().add(0, 2, 0).getBlock();
+                if (isOreBlock(floor.getType()) && isSolidAndMineable(floor)) return true;
+                if (isOreBlock(ceil.getType()) && isSolidAndMineable(ceil)) return true;
+
+                if (hasOreSides(loc.getWorld(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ())) return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasOreSides(World world, int x, int y, int z) {
+        int[][] sideOffsets = {
+            {1, 0, 0}, {-1, 0, 0},
+            {0, 0, 1}, {0, 0, -1}
+        };
+
+        for (int[] offset : sideOffsets) {
+            Block sideFeet = world.getBlockAt(x + offset[0], y, z + offset[2]);
+            Block sideHead = world.getBlockAt(x + offset[0], y + 1, z + offset[2]);
+
+            if (isOreBlock(sideFeet.getType()) && isSolidAndMineable(sideFeet)) {
+                return true;
+            }
+            if (isOreBlock(sideHead.getType()) && isSolidAndMineable(sideHead)) {
+                return true;
+            }
+        }
         return false;
     }
 }
