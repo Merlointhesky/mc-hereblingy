@@ -900,7 +900,7 @@ public class MineTask extends BukkitRunnable {
         int cy = current.getBlockY();
         int cz = current.getBlockZ();
 
-        // 5 neighboring directions: East, West, South, North, and Top-ceiling
+        // 1. First, check the 5 immediate neighboring positions (original logic for water & lava)
         int[][] directions = {
                 {1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}, {0, 2, 0}
         };
@@ -908,7 +908,6 @@ public class MineTask extends BukkitRunnable {
         for (int[] dir : directions) {
             Block block = world.getBlockAt(cx + dir[0], cy + dir[1], cz + dir[2]);
             if (block.getType() == Material.WATER || block.getType() == Material.LAVA) {
-                // We have a leak! Seal it.
                 Material plugMat = getMostAbundantPlugMaterial();
                 if (plugMat != null) {
                     block.setType(plugMat);
@@ -919,6 +918,55 @@ public class MineTask extends BukkitRunnable {
                 }
             }
         }
+
+        // 2. Next, scan a 5-block sphere radius specifically for lava to plug flow paths/sources
+        int radius = 5;
+        int radiusSq = radius * radius;
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dy = -radius; dy <= radius; dy++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (dx * dx + dy * dy + dz * dz > radiusSq) {
+                        continue;
+                    }
+
+                    Block block = world.getBlockAt(cx + dx, cy + dy, cz + dz);
+                    if (block.getType() == Material.LAVA) {
+                        // Plug the lava if it is adjacent to air (so it cannot flow into the player's tunnel)
+                        if (isAdjacentToAir(block)) {
+                            Material plugMat = getMostAbundantPlugMaterial();
+                            if (plugMat != null) {
+                                block.setType(plugMat);
+                                removeInventoryItem(plugMat);
+                                leaksPluggedCount++;
+                                world.playSound(block.getLocation(), Sound.BLOCK_STONE_PLACE, 1.0f, 0.8f);
+                                player.sendActionBar(Component.text("Blocked lava leak with " + plugMat.name()).color(NamedTextColor.RED));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean isAdjacentToAir(Block block) {
+        World world = block.getWorld();
+        int bx = block.getX();
+        int by = block.getY();
+        int bz = block.getZ();
+
+        int[][] neighbors = {
+            {1, 0, 0}, {-1, 0, 0},
+            {0, 1, 0}, {0, -1, 0},
+            {0, 0, 1}, {0, 0, -1}
+        };
+
+        for (int[] offset : neighbors) {
+            Block adj = world.getBlockAt(bx + offset[0], by + offset[1], bz + offset[2]);
+            if (adj.getType().isAir()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Material getMostAbundantPlugMaterial() {

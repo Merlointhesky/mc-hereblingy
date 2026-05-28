@@ -1,5 +1,1 @@
 # HereBlingy
-- when terraforming, we need to make sure the starting point is not completely underground, otherwise we trigger suffucation teleport and start digging from the wrong place and skip a whole layer of digging to do. The starting point should always start from 2 air block available as close as possible to the top layer, calculated based on the most adjacent blocks to the entire area to dig. 
-- when we "finish" the task, before declaring so,we shoudl rescan and make sure nothing happened wrong or nothing was placed in the area by endermen. If any blocks still exist in the area, clear them out again. 
-- if during digging we pick up any torches or lanterns, save them in the inventory and place them in the next ceiling (lantern) wall (torches) or ground (both). 
-- allow enabling "light up" mode in the config, where while diggin we will place lanters and torches either on the ceiling (lantern only), on the wall (torches only) or on the ground (both) around the entire area being dug if in poor lit conditions (less than 3). 
