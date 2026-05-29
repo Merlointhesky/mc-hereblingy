@@ -63,8 +63,9 @@ public class PlayerMiningConfig {
                 Material.LAPIS_LAZULI, Material.LAPIS_ORE, Material.DEEPSLATE_LAPIS_ORE,
                 Material.COAL, Material.COAL_ORE, Material.DEEPSLATE_COAL_ORE,
                 Material.NETHER_QUARTZ_ORE, Material.QUARTZ,
-                Material.NETHER_GOLD_ORE,
-                Material.ANCIENT_DEBRIS, Material.NETHERITE_SCRAP,
+                Material.NETHER_GOLD_ORE, Material.GOLD_NUGGET,
+                Material.ANCIENT_DEBRIS, Material.NETHERITE_SCRAP, Material.NETHERITE_INGOT, Material.NETHERITE_BLOCK,
+                Material.GILDED_BLACKSTONE, Material.GLOWSTONE, Material.GLOWSTONE_DUST,
                 Material.FLINT
         };
 
@@ -76,7 +77,11 @@ public class PlayerMiningConfig {
         Material[] debris = {
                 Material.STONE, Material.COBBLESTONE,
                 Material.DEEPSLATE, Material.COBBLED_DEEPSLATE,
-                Material.NETHERRACK,
+                Material.NETHERRACK, Material.BLACKSTONE,
+                Material.BASALT, Material.POLISHED_BASALT, Material.SMOOTH_BASALT,
+                Material.MAGMA_BLOCK, Material.SOUL_SAND, Material.SOUL_SOIL,
+                Material.WARPED_NYLIUM, Material.CRIMSON_NYLIUM,
+                Material.NETHER_BRICKS, Material.BONE_BLOCK,
                 Material.SANDSTONE,
                 Material.OBSIDIAN,
                 Material.TUFF,
@@ -101,6 +106,7 @@ public class PlayerMiningConfig {
         return name.contains("DIAMOND") || name.contains("EMERALD") || name.contains("IRON") 
                 || name.contains("GOLD") || name.contains("COPPER") || name.contains("REDSTONE") 
                 || name.contains("LAPIS") || name.contains("COAL") || name.contains("QUARTZ") 
-                || name.contains("ANCIENT_DEBRIS") || name.contains("NETHERITE") || material == Material.FLINT;
+                || name.contains("ANCIENT_DEBRIS") || name.contains("NETHERITE") 
+                || name.contains("GILDED") || name.contains("GLOWSTONE") || material == Material.FLINT;
     }
 }

@@ -128,6 +128,10 @@ public class MineTask extends BukkitRunnable {
             return;
         }
 
+        // Continuous tick-rate leak checking centered at player's current location.
+        // Runs every single tick (20 times/sec) to ensure fluid safety even during pauses or defense.
+        checkAndPlugLeaks(player.getLocation());
+
         // 1a. Check for hostiles and defend!
         if (handleDefense()) {
             minePause = 8; // pause auto-mining for 8 ticks to honor weapon sweep cooldown
@@ -232,6 +236,13 @@ public class MineTask extends BukkitRunnable {
 
         // Determine the safe standing spot for the target coordinate
         Location safeTarget = findSafeTeleportLocation(target);
+        if (safeTarget == null) {
+            sendActivitySummary();
+            cancel();
+            player.sendMessage(Component.text("⚠️ Auto-mining paused: No safe standing location found (hazard/lava ahead)!").color(NamedTextColor.RED));
+            player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.0f, 1.0f);
+            return;
+        }
 
         // Check if player has fallen down a mountain or is too far from safe target, immediately teleport back
         double dx = safeTarget.getX() - current.getX();
@@ -282,9 +293,6 @@ public class MineTask extends BukkitRunnable {
             return;
         }
 
-        // 5. Check for fluid leaks adjacent to current position and plug them
-        checkAndPlugLeaks(current);
-
         // 6. Check if we arrived at target (which is now guaranteed to be air!)
         if (totalDist < SNAP_DISTANCE) {
             teleportToTarget(current, target);
@@ -314,6 +322,13 @@ public class MineTask extends BukkitRunnable {
 
     private void teleportToTarget(Location current, Location target) {
         Location safeTarget = findSafeTeleportLocation(target);
+        if (safeTarget == null) {
+            sendActivitySummary();
+            cancel();
+            player.sendMessage(Component.text("⚠️ Auto-mining paused: No safe standing location found (hazard/lava/magma ahead)!").color(NamedTextColor.RED));
+            player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.0f, 1.0f);
+            return;
+        }
         Location snap = safeTarget.clone();
         snap.setPitch(current.getPitch());
         snap.setYaw(current.getYaw());
@@ -333,6 +348,24 @@ public class MineTask extends BukkitRunnable {
         }
 
         player.teleport(snap);
+    }
+
+    private boolean isSafePassable(Material material) {
+        return (material.isAir() || !material.isSolid())
+            && material != Material.LAVA
+            && material != Material.WATER
+            && material != Material.FIRE
+            && material != Material.SOUL_FIRE
+            && material != Material.LAVA_CAULDRON;
+    }
+
+    private boolean isSafeStandingBlock(Material material) {
+        return material.isSolid()
+            && material != Material.MAGMA_BLOCK
+            && material != Material.CAMPFIRE
+            && material != Material.SOUL_CAMPFIRE
+            && material != Material.CACTUS
+            && material != Material.SWEET_BERRY_BUSH;
     }
 
     private Location findSafeTeleportLocation(Location target) {
@@ -357,11 +390,10 @@ public class MineTask extends BukkitRunnable {
                     Block head = world.getBlockAt(x, y + 1, z);
                     Block stand = world.getBlockAt(x, y - 1, z);
 
-                    // Spot is air/passable for feet and head
-                    if ((feet.getType().isAir() || !feet.getType().isSolid()) &&
-                        (head.getType().isAir() || !head.getType().isSolid())) {
+                    // Spot is air/passable and safe for feet and head
+                    if (isSafePassable(feet.getType()) && isSafePassable(head.getType())) {
 
-                        boolean ground = stand.getType().isSolid();
+                        boolean ground = isSafeStandingBlock(stand.getType());
                         double distSq = dx * dx + dy * dy + dz * dz;
 
                         if (ground && !foundGround) {
@@ -381,7 +413,7 @@ public class MineTask extends BukkitRunnable {
             }
         }
 
-        return bestLoc != null ? bestLoc : target;
+        return bestLoc;
     }
 
     private org.bukkit.entity.LivingEntity findNearbyHostileMob() {
@@ -478,6 +510,66 @@ public class MineTask extends BukkitRunnable {
         return true;
     }
 
+    private static final Material[] ALLOWED_PLUGS = {
+            Material.COBBLESTONE, Material.COBBLED_DEEPSLATE, Material.TUFF, Material.NETHERRACK,
+            Material.STONE, Material.DEEPSLATE, Material.DIRT, Material.ANDESITE, Material.DIORITE,
+            Material.GRANITE, Material.BLACKSTONE, Material.BASALT, Material.END_STONE, Material.CALCITE
+    };
+
+    private boolean isAllowedPlugMaterial(Material mat) {
+        for (Material allowed : ALLOWED_PLUGS) {
+            if (allowed == mat) return true;
+        }
+        return false;
+    }
+
+    private int countTotalPlugMaterials() {
+        int total = 0;
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (item != null && isAllowedPlugMaterial(item.getType())) {
+                total += item.getAmount();
+            }
+        }
+        return total;
+    }
+
+    private void teleportToSafetyAndCancel(String reason) {
+        player.teleport(startLoc);
+        sendActivitySummary();
+        cancel();
+        player.sendMessage(Component.text("🚨 EMERGENCY RECALL: " + reason).color(NamedTextColor.RED));
+        player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.0f, 0.5f);
+    }
+
+    private void checkAndPlugAroundBlock(Block block) {
+        World world = block.getWorld();
+        int bx = block.getX();
+        int by = block.getY();
+        int bz = block.getZ();
+
+        int[][] directions = {
+            {1, 0, 0}, {-1, 0, 0},
+            {0, 1, 0}, {0, -1, 0},
+            {0, 0, 1}, {0, 0, -1}
+        };
+
+        for (int[] dir : directions) {
+            Block neighbor = world.getBlockAt(bx + dir[0], by + dir[1], bz + dir[2]);
+            if (neighbor.getType() == Material.WATER || neighbor.getType() == Material.LAVA) {
+                Material plugMat = getMostAbundantPlugMaterial();
+                if (plugMat == null) {
+                    teleportToSafetyAndCancel("Ran out of plug blocks while sealing adjacent block break!");
+                    return;
+                }
+                neighbor.setType(plugMat);
+                removeInventoryItem(plugMat);
+                leaksPluggedCount++;
+                world.playSound(neighbor.getLocation(), Sound.BLOCK_STONE_PLACE, 1.0f, 0.8f);
+                player.sendActionBar(Component.text("Plugged adjacent fluid with " + plugMat.name()).color(NamedTextColor.YELLOW));
+            }
+        }
+    }
+
     private boolean mineBlockWithoutVein(Block block) {
         if (isSolidAndMineable(block)) {
             Material type = block.getType();
@@ -485,6 +577,7 @@ public class MineTask extends BukkitRunnable {
                 ItemStack tool = player.getInventory().getItemInMainHand();
                 applyExtraDrops(block, type);
                 block.breakNaturally(tool);
+                checkAndPlugAroundBlock(block);
                 
                 boolean isShovel = isShovelWorthy(type);
                 if (isShovel) {
@@ -509,6 +602,7 @@ public class MineTask extends BukkitRunnable {
                 ItemStack tool = player.getInventory().getItemInMainHand();
                 applyExtraDrops(block, type);
                 block.breakNaturally(tool);
+                checkAndPlugAroundBlock(block);
                 
                 boolean isShovel = isShovelWorthy(type);
                 if (isShovel) {
@@ -638,6 +732,23 @@ public class MineTask extends BukkitRunnable {
         return broken;
     }
 
+    private boolean convertToSolidIfFluid(Block block) {
+        Material type = block.getType();
+        if (type == Material.LAVA || type == Material.WATER) {
+            Material plugMat = getMostAbundantPlugMaterial();
+            if (plugMat == null) {
+                teleportToSafetyAndCancel("Ran out of plug blocks while clearing fluid in path!");
+                return false;
+            }
+            block.setType(plugMat);
+            removeInventoryItem(plugMat);
+            leaksPluggedCount++;
+            block.getWorld().playSound(block.getLocation(), Sound.BLOCK_STONE_PLACE, 1.0f, 0.8f);
+            player.sendActionBar(Component.text("Solidified path fluid with " + plugMat.name()).color(NamedTextColor.YELLOW));
+        }
+        return true;
+    }
+
     private boolean executeMiningAt(Location loc) {
         boolean broken = false;
 
@@ -656,6 +767,12 @@ public class MineTask extends BukkitRunnable {
                 Block head1 = world.getBlockAt(x1, y + 1, z);
                 Block feet2 = world.getBlockAt(x2, y, z);
                 Block head2 = world.getBlockAt(x2, y + 1, z);
+
+                // Convert fluid to solid plug block before mining to maintain a safe corridor
+                if (!convertToSolidIfFluid(feet1) || !convertToSolidIfFluid(head1) 
+                    || !convertToSolidIfFluid(feet2) || !convertToSolidIfFluid(head2)) {
+                    return false;
+                }
 
                 broken |= mineBlock(feet1);
                 broken |= mineBlock(head1);
@@ -686,6 +803,12 @@ public class MineTask extends BukkitRunnable {
                 Block feet2 = world.getBlockAt(x, y, z2);
                 Block head2 = world.getBlockAt(x, y + 1, z2);
 
+                // Convert fluid to solid plug block before mining to maintain a safe corridor
+                if (!convertToSolidIfFluid(feet1) || !convertToSolidIfFluid(head1) 
+                    || !convertToSolidIfFluid(feet2) || !convertToSolidIfFluid(head2)) {
+                    return false;
+                }
+
                 broken |= mineBlock(feet1);
                 broken |= mineBlock(head1);
                 broken |= mineBlock(feet2);
@@ -709,6 +832,12 @@ public class MineTask extends BukkitRunnable {
         } else {
             Block feet = loc.getBlock();
             Block head = loc.clone().add(0, 1, 0).getBlock();
+
+            // Convert fluid to solid plug block before mining to maintain a safe corridor
+            if (!convertToSolidIfFluid(feet) || !convertToSolidIfFluid(head)) {
+                return false;
+            }
+
             broken |= mineBlock(feet);
             broken |= mineBlock(head);
 
@@ -736,10 +865,12 @@ public class MineTask extends BukkitRunnable {
         Material type = block.getType();
         if (type.isAir() || !type.isSolid()) return false;
         
-        // Bypass logs, wood, leaves, stems (trees/hubris)
+        // Bypass logs, wood, leaves, stems, mushrooms, fungi, hyphae, wart blocks, shroomlights (trees/vegetation handled by HereLoggy/other mods)
         String name = type.name();
         if (name.contains("LOG") || name.contains("LEAVES") || name.contains("WOOD") 
-                || name.contains("STEM") || type == Material.MANGROVE_ROOTS) {
+                || name.contains("STEM") || name.contains("HYPHAE") || name.contains("WART_BLOCK")
+                || name.contains("FUNGUS") || name.contains("MUSHROOM") || name.contains("SHROOMLIGHT")
+                || type == Material.MANGROVE_ROOTS) {
             return false;
         }
 
@@ -909,18 +1040,20 @@ public class MineTask extends BukkitRunnable {
             Block block = world.getBlockAt(cx + dir[0], cy + dir[1], cz + dir[2]);
             if (block.getType() == Material.WATER || block.getType() == Material.LAVA) {
                 Material plugMat = getMostAbundantPlugMaterial();
-                if (plugMat != null) {
-                    block.setType(plugMat);
-                    removeInventoryItem(plugMat);
-                    leaksPluggedCount++;
-                    world.playSound(block.getLocation(), Sound.BLOCK_STONE_PLACE, 1.0f, 0.8f);
-                    player.sendActionBar(Component.text("Plugged leak with " + plugMat.name()).color(NamedTextColor.YELLOW));
+                if (plugMat == null) {
+                    teleportToSafetyAndCancel("Ran out of plug blocks while sealing immediate leak!");
+                    return;
                 }
+                block.setType(plugMat);
+                removeInventoryItem(plugMat);
+                leaksPluggedCount++;
+                world.playSound(block.getLocation(), Sound.BLOCK_STONE_PLACE, 1.0f, 0.8f);
+                player.sendActionBar(Component.text("Plugged leak with " + plugMat.name()).color(NamedTextColor.YELLOW));
             }
         }
 
-        // 2. Next, scan a 5-block sphere radius specifically for lava to plug flow paths/sources
-        int radius = 5;
+        // 2. Next, scan a 4-block sphere radius specifically for lava to plug flow paths/sources
+        int radius = 4;
         int radiusSq = radius * radius;
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dy = -radius; dy <= radius; dy++) {
@@ -931,16 +1064,18 @@ public class MineTask extends BukkitRunnable {
 
                     Block block = world.getBlockAt(cx + dx, cy + dy, cz + dz);
                     if (block.getType() == Material.LAVA) {
-                        // Plug the lava if it is adjacent to air (so it cannot flow into the player's tunnel)
-                        if (isAdjacentToAir(block)) {
+                        // Plug the lava if it is adjacent to air/passable space (so it cannot flow into the player's tunnel)
+                        if (isAdjacentToPassable(block)) {
                             Material plugMat = getMostAbundantPlugMaterial();
-                            if (plugMat != null) {
-                                block.setType(plugMat);
-                                removeInventoryItem(plugMat);
-                                leaksPluggedCount++;
-                                world.playSound(block.getLocation(), Sound.BLOCK_STONE_PLACE, 1.0f, 0.8f);
-                                player.sendActionBar(Component.text("Blocked lava leak with " + plugMat.name()).color(NamedTextColor.RED));
+                            if (plugMat == null) {
+                                teleportToSafetyAndCancel("Ran out of plug blocks while sealing nearby lava!");
+                                return;
                             }
+                            block.setType(plugMat);
+                            removeInventoryItem(plugMat);
+                            leaksPluggedCount++;
+                            world.playSound(block.getLocation(), Sound.BLOCK_STONE_PLACE, 1.0f, 0.8f);
+                            player.sendActionBar(Component.text("Blocked lava leak with " + plugMat.name()).color(NamedTextColor.RED));
                         }
                     }
                 }
@@ -948,7 +1083,7 @@ public class MineTask extends BukkitRunnable {
         }
     }
 
-    private boolean isAdjacentToAir(Block block) {
+    private boolean isAdjacentToPassable(Block block) {
         World world = block.getWorld();
         int bx = block.getX();
         int by = block.getY();
@@ -962,7 +1097,8 @@ public class MineTask extends BukkitRunnable {
 
         for (int[] offset : neighbors) {
             Block adj = world.getBlockAt(bx + offset[0], by + offset[1], bz + offset[2]);
-            if (adj.getType().isAir()) {
+            Material type = adj.getType();
+            if (type.isAir() || (!type.isSolid() && type != Material.LAVA && type != Material.WATER)) {
                 return true;
             }
         }
@@ -970,14 +1106,10 @@ public class MineTask extends BukkitRunnable {
     }
 
     private Material getMostAbundantPlugMaterial() {
-        Material[] allowedPlugs = {
-                Material.COBBLESTONE, Material.COBBLED_DEEPSLATE, Material.TUFF, Material.NETHERRACK
-        };
-
         Material highestMaterial = null;
         int highestCount = 0;
 
-        for (Material mat : allowedPlugs) {
+        for (Material mat : ALLOWED_PLUGS) {
             int count = countInventoryItems(mat);
             if (count > highestCount) {
                 highestCount = count;
@@ -1189,6 +1321,42 @@ public class MineTask extends BukkitRunnable {
 
             boolean isKeep = (dest == MiningSettings.Destination.KEEP_CHEST);
             Location chestLoc = isKeep ? setup.getKeepChest() : setup.getTrashChest();
+
+            if (isAllowedPlugMaterial(mat)) {
+                // Determine how many plug blocks we have in total
+                int totalPlugs = countTotalPlugMaterials();
+                int itemAmount = item.getAmount();
+                if (totalPlugs - itemAmount < 64) {
+                    // We must retain at least 64 total plug blocks.
+                    int keepAmount = 64 - (totalPlugs - itemAmount);
+                    if (keepAmount >= itemAmount) {
+                        continue; // Keep the whole stack in inventory
+                    } else {
+                        // Keep keepAmount, only dump (itemAmount - keepAmount)
+                        ItemStack dumpStack = item.clone();
+                        dumpStack.setAmount(itemAmount - keepAmount);
+
+                        if (chestLoc != null && chestLoc.getBlock().getState() instanceof Container container) {
+                            Inventory chestInv = container.getInventory();
+                            HashMap<Integer, ItemStack> leftover = chestInv.addItem(dumpStack);
+                            if (leftover.isEmpty()) {
+                                item.setAmount(keepAmount);
+                                playerInv.setItem(i, item);
+                                successfullyClearedAny = true;
+                            } else {
+                                ItemStack remaining = leftover.values().iterator().next();
+                                int actualDeposited = (itemAmount - keepAmount) - remaining.getAmount();
+                                if (actualDeposited > 0) {
+                                    item.setAmount(itemAmount - actualDeposited);
+                                    playerInv.setItem(i, item);
+                                    successfullyClearedAny = true;
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                }
+            }
 
             if (chestLoc != null && chestLoc.getBlock().getState() instanceof Container container) {
                 Inventory chestInv = container.getInventory();

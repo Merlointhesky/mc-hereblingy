@@ -70,7 +70,8 @@ public class MiningConfigUI {
         fillSubmenu(player, inv, new Material[]{
                 Material.DIAMOND, Material.EMERALD, Material.RAW_IRON, Material.RAW_GOLD,
                 Material.RAW_COPPER, Material.REDSTONE, Material.LAPIS_LAZULI, Material.COAL,
-                Material.QUARTZ, Material.ANCIENT_DEBRIS, Material.FLINT
+                Material.QUARTZ, Material.ANCIENT_DEBRIS, Material.GOLD_NUGGET, Material.NETHERITE_INGOT,
+                Material.GILDED_BLACKSTONE, Material.GLOWSTONE, Material.FLINT
         });
         player.openInventory(inv);
     }
@@ -78,8 +79,9 @@ public class MiningConfigUI {
     public void openStandardMenu(Player player) {
         Inventory inv = Bukkit.createInventory(null, 36, "§0HereBlingy - Standard Blocks");
         fillSubmenu(player, inv, new Material[]{
-                Material.STONE, Material.DEEPSLATE, Material.NETHERRACK, Material.SANDSTONE,
-                Material.OBSIDIAN, Material.TUFF, Material.CALCITE
+                Material.STONE, Material.DEEPSLATE, Material.NETHERRACK, Material.BLACKSTONE,
+                Material.BASALT, Material.SANDSTONE, Material.OBSIDIAN, Material.TUFF,
+                Material.CALCITE
         });
         player.openInventory(inv);
     }
@@ -88,7 +90,8 @@ public class MiningConfigUI {
         Inventory inv = Bukkit.createInventory(null, 36, "§0HereBlingy - Debris & Soils");
         fillSubmenu(player, inv, new Material[]{
                 Material.DIRT, Material.GRASS_BLOCK, Material.COARSE_DIRT, Material.GRAVEL,
-                Material.SAND, Material.RED_SAND, Material.MUD, Material.CLAY, Material.CLAY_BALL
+                Material.SAND, Material.RED_SAND, Material.MUD, Material.CLAY,
+                Material.CLAY_BALL, Material.SOUL_SAND, Material.SOUL_SOIL, Material.MAGMA_BLOCK
         });
         player.openInventory(inv);
     }
