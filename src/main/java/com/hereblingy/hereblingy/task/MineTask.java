@@ -72,6 +72,9 @@ public class MineTask extends BukkitRunnable {
     private Location lastTeleportDest = null;
     private int teleportRetryCount = 0;
 
+    // Consecutive panic tracking for self-recovery
+    private int consecutivePanics = 0;
+
     public MineTask(HereBlingyPlugin plugin, Player player, List<Location> path,
                     AuraSkillsHelper auraSkillsHelper, ScanResult scanResult) {
         this.plugin = plugin;
@@ -237,12 +240,36 @@ public class MineTask extends BukkitRunnable {
         // Determine the safe standing spot for the target coordinate
         Location safeTarget = findSafeTeleportLocation(target);
         if (safeTarget == null) {
-            sendActivitySummary();
-            cancel();
-            player.sendMessage(Component.text("⚠️ Auto-mining paused: No safe standing location found (hazard/lava ahead)!").color(NamedTextColor.RED));
-            player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.0f, 1.0f);
-            return;
+            // First, try space creation:
+            ensureSafeStandingFloor(target);
+            executeMiningAt(target);
+            safeTarget = findSafeTeleportLocation(target);
+            
+            if (safeTarget == null) {
+                // Self-recovery block:
+                if (consecutivePanics < 5) {
+                    consecutivePanics++;
+                    Location lastSafeLoc = path.get(Math.max(0, currentIndex - 1));
+                    player.teleport(lastSafeLoc);
+                    // Trigger block scavenging if low
+                    if (countTotalPlugMaterials() < 20) {
+                        scavengePlugBlocks();
+                    }
+                    minePause = 10; // Pause for 10 ticks to recover/let fluids settle
+                    player.sendActionBar(Component.text("⚠️ Panic recovered: Teleported to last safe spot. Retrying...").color(NamedTextColor.YELLOW));
+                    return;
+                }
+                
+                sendActivitySummary();
+                cancel();
+                player.sendMessage(Component.text("⚠️ Auto-mining paused: No safe standing location found (hazard/lava ahead)!").color(NamedTextColor.RED));
+                player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.0f, 1.0f);
+                return;
+            }
         }
+        
+        // Reset panic count on success
+        consecutivePanics = 0;
 
         // Check if player has fallen down a mountain or is too far from safe target, immediately teleport back
         double dx = safeTarget.getX() - current.getX();
@@ -323,12 +350,32 @@ public class MineTask extends BukkitRunnable {
     private void teleportToTarget(Location current, Location target) {
         Location safeTarget = findSafeTeleportLocation(target);
         if (safeTarget == null) {
-            sendActivitySummary();
-            cancel();
-            player.sendMessage(Component.text("⚠️ Auto-mining paused: No safe standing location found (hazard/lava/magma ahead)!").color(NamedTextColor.RED));
-            player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.0f, 1.0f);
-            return;
+            // Try to create space
+            ensureSafeStandingFloor(target);
+            executeMiningAt(target);
+            safeTarget = findSafeTeleportLocation(target);
+            
+            if (safeTarget == null) {
+                if (consecutivePanics < 5) {
+                    consecutivePanics++;
+                    Location lastSafeLoc = path.get(Math.max(0, currentIndex - 1));
+                    player.teleport(lastSafeLoc);
+                    if (countTotalPlugMaterials() < 20) {
+                        scavengePlugBlocks();
+                    }
+                    minePause = 10;
+                    player.sendActionBar(Component.text("⚠️ Panic recovered: Teleported to last safe spot. Retrying...").color(NamedTextColor.YELLOW));
+                    return;
+                }
+                
+                sendActivitySummary();
+                cancel();
+                player.sendMessage(Component.text("⚠️ Auto-mining paused: No safe standing location found (hazard/lava/magma ahead)!").color(NamedTextColor.RED));
+                player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.0f, 1.0f);
+                return;
+            }
         }
+        consecutivePanics = 0;
         Location snap = safeTarget.clone();
         snap.setPitch(current.getPitch());
         snap.setYaw(current.getYaw());
@@ -519,6 +566,168 @@ public class MineTask extends BukkitRunnable {
     private boolean isAllowedPlugMaterial(Material mat) {
         for (Material allowed : ALLOWED_PLUGS) {
             if (allowed == mat) return true;
+        }
+        return false;
+    }
+
+    private boolean ensureSafeStandingFloor(Location loc) {
+        World world = loc.getWorld();
+        if (world == null) return false;
+        int y = loc.getBlockY();
+        
+        boolean isMainTunnel = (loc.getX() == Math.floor(loc.getX())) || (loc.getZ() == Math.floor(loc.getZ()));
+        if (isInfiniteMode && isMainTunnel) {
+            boolean isNorthSouth = (loc.getX() == Math.floor(loc.getX()));
+            if (isNorthSouth) {
+                int x1 = (int) Math.floor(loc.getX());
+                int x2 = x1 - 1;
+                int z = loc.getBlockZ();
+                
+                Block floor1 = world.getBlockAt(x1, y - 1, z);
+                Block floor2 = world.getBlockAt(x2, y - 1, z);
+                
+                if (!ensureBlockIsSafeStanding(floor1) || !ensureBlockIsSafeStanding(floor2)) {
+                    return false;
+                }
+            } else {
+                int z1 = (int) Math.floor(loc.getZ());
+                int z2 = z1 - 1;
+                int x = loc.getBlockX();
+                
+                Block floor1 = world.getBlockAt(x, y - 1, z1);
+                Block floor2 = world.getBlockAt(x, y - 1, z2);
+                
+                if (!ensureBlockIsSafeStanding(floor1) || !ensureBlockIsSafeStanding(floor2)) {
+                    return false;
+                }
+            }
+        } else {
+            Block floor = loc.clone().add(0, -1, 0).getBlock();
+            if (!ensureBlockIsSafeStanding(floor)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean ensureBlockIsSafeStanding(Block block) {
+        if (isSafeStandingBlock(block.getType())) {
+            return true;
+        }
+        
+        // If not a safe standing block (e.g. air, lava, water, magma, sweet berry bush, cactus, etc.)
+        Material plugMat = getMostAbundantPlugMaterial();
+        if (plugMat == null) {
+            // Try to scavenge plug blocks first!
+            scavengePlugBlocks();
+            plugMat = getMostAbundantPlugMaterial();
+        }
+        
+        if (plugMat == null) {
+            teleportToSafetyAndCancel("Ran out of plug blocks while constructing safe standing floor!");
+            return false;
+        }
+        
+        block.setType(plugMat);
+        removeInventoryItem(plugMat);
+        leaksPluggedCount++;
+        block.getWorld().playSound(block.getLocation(), Sound.BLOCK_STONE_PLACE, 1.0f, 0.8f);
+        player.sendActionBar(Component.text("Placed bridge/floor block: " + plugMat.name()).color(NamedTextColor.YELLOW));
+        return true;
+    }
+
+    private void scavengePlugBlocks() {
+        Location loc = player.getLocation();
+        World world = loc.getWorld();
+        if (world == null) return;
+        
+        player.sendMessage(Component.text("⛏ Low on plug blocks! Scavenging surrounding walls & ceiling for materials...").color(NamedTextColor.GOLD));
+        
+        int px = loc.getBlockX();
+        int py = loc.getBlockY();
+        int pz = loc.getBlockZ();
+        
+        int blocksMined = 0;
+        int maxToMine = 20;
+        int radius = 5;
+        
+        // Sphere-like scan to find candidate blocks
+        for (int dy = -1; dy <= radius && blocksMined < maxToMine; dy++) {
+            for (int dx = -radius; dx <= radius && blocksMined < maxToMine; dx++) {
+                for (int dz = -radius; dz <= radius && blocksMined < maxToMine; dz++) {
+                    // Skip block directly under the player's feet
+                    if (dx == 0 && dy == -1 && dz == 0) continue;
+                    // Skip the player's immediate standing height (feet and head)
+                    if (dx == 0 && (dy == 0 || dy == 1) && dz == 0) continue;
+                    
+                    int tx = px + dx;
+                    int ty = py + dy;
+                    int tz = pz + dz;
+                    
+                    Location candidateLoc = new Location(world, tx, ty, tz);
+                    // Skip active path coordinates so we don't destroy the planned path
+                    boolean isOnPath = false;
+                    for (Location pathLoc : path) {
+                        if (pathLoc.getWorld() == world && pathLoc.getBlockX() == tx && pathLoc.getBlockY() == ty && pathLoc.getBlockZ() == tz) {
+                            isOnPath = true;
+                            break;
+                        }
+                    }
+                    if (isOnPath) continue;
+                    
+                    Block block = world.getBlockAt(tx, ty, tz);
+                    Material type = block.getType();
+                    
+                    // We only want allowed solid plug materials
+                    if (!isAllowedPlugMaterial(type)) continue;
+                    
+                    // Ensure the block is NOT adjacent to water/lava so we don't cause flooding/hazard!
+                    if (isAdjacentToFluid(block)) continue;
+                    
+                    // Let's mine this block!
+                    if (verifyToolAndDurability(type)) {
+                        ItemStack tool = player.getInventory().getItemInMainHand();
+                        applyExtraDrops(block, type);
+                        block.breakNaturally(tool);
+                        blocksMined++;
+                        
+                        boolean isShovel = isShovelWorthy(type);
+                        if (isShovel) {
+                            auraSkillsHelper.addExcavationXp(player, auraSkillsHelper.getBaseXpForExcavationBlock(type));
+                        } else {
+                            auraSkillsHelper.addMiningXp(player, auraSkillsHelper.getBaseXpForBlock(type));
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Attract drops immediately so the player gets the blocks in their inventory!
+        if (blocksMined > 0) {
+            attractDropsAndRepairMending(loc);
+            player.sendMessage(Component.text("✔ Scavenged " + blocksMined + " plug blocks from surrounding safe area!").color(NamedTextColor.GREEN));
+        } else {
+            player.sendMessage(Component.text("⚠️ No suitable safe blocks found nearby to scavenge!").color(NamedTextColor.RED));
+        }
+    }
+
+    private boolean isAdjacentToFluid(Block block) {
+        World world = block.getWorld();
+        int bx = block.getX();
+        int by = block.getY();
+        int bz = block.getZ();
+        
+        int[][] directions = {
+            {1, 0, 0}, {-1, 0, 0},
+            {0, 1, 0}, {0, -1, 0},
+            {0, 0, 1}, {0, 0, -1}
+        };
+        
+        for (int[] dir : directions) {
+            Material type = world.getBlockAt(bx + dir[0], by + dir[1], bz + dir[2]).getType();
+            if (type == Material.WATER || type == Material.LAVA) {
+                return true;
+            }
         }
         return false;
     }

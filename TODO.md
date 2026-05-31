@@ -1,1 +1,2 @@
 # HereBlingy
+- the plugin seems to panic too many times because of impossible to navigate or lava. We should be able to manage this by keeping the stack of "junk" blocks logic and placing blocks as we go instead of doing an auto-stop every time. Please refine the process to ensure continuity of the process.
