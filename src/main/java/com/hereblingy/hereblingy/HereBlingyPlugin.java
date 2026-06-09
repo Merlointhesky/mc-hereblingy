@@ -6,6 +6,7 @@ import com.hereblingy.hereblingy.command.SetupWizardCommand;
 import com.hereblingy.hereblingy.config.MiningConfigManager;
 import com.hereblingy.hereblingy.config.MiningConfigUI;
 import com.hereblingy.hereblingy.config.MiningConfigListener;
+import com.hereblingy.hereblingy.hereroleplay.HereRolePlayHelper;
 import com.hereblingy.hereblingy.listener.MineListener;
 import com.hereblingy.hereblingy.listener.SetupWizardListener;
 import com.hereblingy.hereblingy.map.ScanManager;
@@ -21,6 +22,7 @@ public final class HereBlingyPlugin extends JavaPlugin {
     private SelectionManager selectionManager;
     private final MineTaskManager mineTaskManager = new MineTaskManager();
     private final AuraSkillsHelper auraSkillsHelper = new AuraSkillsHelper();
+    private final HereRolePlayHelper hereRolePlayHelper = new HereRolePlayHelper();
     private ScanManager scanManager;
     private SetupManager setupManager;
     private MiningConfigManager miningConfigManager;
@@ -39,12 +41,13 @@ public final class HereBlingyPlugin extends JavaPlugin {
         this.miningConfigUI = new MiningConfigUI(miningConfigManager);
         
         auraSkillsHelper.init();
+        hereRolePlayHelper.init();
         
         // Create setup wizard command
         setupWizardCommand = new SetupWizardCommand(setupManager, this);
         
         // Register main command with all subcommands
-        getCommand("hereblingy").setExecutor(new HereBlingyCommand(selectionManager, mineTaskManager, auraSkillsHelper, scanManager, setupWizardCommand, miningConfigUI));
+        getCommand("hereblingy").setExecutor(new HereBlingyCommand(selectionManager, mineTaskManager, auraSkillsHelper, hereRolePlayHelper, scanManager, setupWizardCommand, miningConfigUI));
         
         // Register listeners
         getServer().getPluginManager().registerEvents(new MineListener(selectionManager, mineTaskManager, scanManager, setupManager, miningConfigManager), this);
@@ -83,6 +86,10 @@ public final class HereBlingyPlugin extends JavaPlugin {
 
     public AuraSkillsHelper getAuraSkillsHelper() {
         return auraSkillsHelper;
+    }
+
+    public HereRolePlayHelper getHereRolePlayHelper() {
+        return hereRolePlayHelper;
     }
 
     public SetupManager getSetupManager() {

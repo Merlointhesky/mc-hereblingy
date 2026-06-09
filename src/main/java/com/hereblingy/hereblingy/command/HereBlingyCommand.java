@@ -3,8 +3,9 @@ package com.hereblingy.hereblingy.command;
 import com.hereblingy.hereblingy.HereBlingyPlugin;
 import com.hereblingy.hereblingy.auraskills.AuraSkillsHelper;
 import com.hereblingy.hereblingy.config.MiningConfigUI;
+import com.hereblingy.hereblingy.command.SetupWizardCommand;
+import com.hereblingy.hereblingy.hereroleplay.HereRolePlayHelper;
 import com.hereblingy.hereblingy.map.ScanManager;
-import com.hereblingy.hereblingy.map.ScanResult;
 import com.hereblingy.hereblingy.path.PathGenerator;
 import com.hereblingy.hereblingy.selection.SelectionManager;
 import com.hereblingy.hereblingy.task.MineTask;
@@ -25,20 +26,22 @@ public class HereBlingyCommand implements CommandExecutor {
     private final SelectionManager selectionManager;
     private final MineTaskManager mineTaskManager;
     private final AuraSkillsHelper auraSkillsHelper;
+    private final HereRolePlayHelper hereRolePlayHelper;
     private final ScanManager scanManager;
     private final SetupWizardCommand setupWizardCommand;
     private final MiningConfigUI configUI;
     private final com.hereblingy.hereblingy.config.MiningConfigManager configManager;
 
-    public HereBlingyCommand(SelectionManager selectionManager, MineTaskManager mineTaskManager,
-                             AuraSkillsHelper auraSkillsHelper, ScanManager scanManager,
-                             SetupWizardCommand setupWizardCommand, MiningConfigUI configUI) {
+    public HereBlingyCommand(SelectionManager selectionManager, MineTaskManager mineTaskManager, 
+                             AuraSkillsHelper auraSkillsHelper, HereRolePlayHelper hereRolePlayHelper, ScanManager scanManager,
+                             SetupWizardCommand setupWizardCommand, MiningConfigUI miningConfigUI) {
         this.selectionManager = selectionManager;
         this.mineTaskManager = mineTaskManager;
         this.auraSkillsHelper = auraSkillsHelper;
+        this.hereRolePlayHelper = hereRolePlayHelper;
         this.scanManager = scanManager;
         this.setupWizardCommand = setupWizardCommand;
-        this.configUI = configUI;
+        this.configUI = miningConfigUI;
         this.configManager = HereBlingyPlugin.getInstance().getMiningConfigManager();
     }
 
@@ -100,7 +103,7 @@ public class HereBlingyCommand implements CommandExecutor {
             mineTaskManager.cachePath(player.getUniqueId(), path);
             mineTaskManager.clearLastStop(player);
 
-            MineTask task = new MineTask(HereBlingyPlugin.getInstance(), player, path, auraSkillsHelper, player.getLocation(), branchWidth);
+            MineTask task = new MineTask(HereBlingyPlugin.getInstance(), player, path, auraSkillsHelper, hereRolePlayHelper, player.getLocation(), branchWidth);
             mineTaskManager.startTask(player, task);
 
             player.sendMessage(Component.text("-----------------------------------").color(NamedTextColor.GRAY));
@@ -143,7 +146,7 @@ public class HereBlingyCommand implements CommandExecutor {
                 mineTaskManager.cachePath(player.getUniqueId(), path);
                 mineTaskManager.clearLastStop(player);
 
-                MineTask task = new MineTask(HereBlingyPlugin.getInstance(), player, path, auraSkillsHelper, result);
+                MineTask task = new MineTask(HereBlingyPlugin.getInstance(), player, path, auraSkillsHelper, hereRolePlayHelper, result);
                 mineTaskManager.startTask(player, task);
 
                 player.sendMessage(Component.text("-----------------------------------").color(NamedTextColor.GRAY));
@@ -194,9 +197,9 @@ public class HereBlingyCommand implements CommandExecutor {
 
         MineTask task;
         if (mode == com.hereblingy.hereblingy.config.PlayerMiningConfig.MiningMode.STRIP_MINING) {
-            task = new MineTask(HereBlingyPlugin.getInstance(), player, path, auraSkillsHelper, player.getLocation(), 16);
+            task = new MineTask(HereBlingyPlugin.getInstance(), player, path, auraSkillsHelper, hereRolePlayHelper, player.getLocation(), 16);
         } else {
-            task = new MineTask(HereBlingyPlugin.getInstance(), player, path, auraSkillsHelper, null);
+            task = new MineTask(HereBlingyPlugin.getInstance(), player, path, auraSkillsHelper, hereRolePlayHelper, null);
         }
         
         task.setCurrentIndex(index);

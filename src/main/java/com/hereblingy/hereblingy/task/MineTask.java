@@ -2,6 +2,7 @@ package com.hereblingy.hereblingy.task;
 
 import com.hereblingy.hereblingy.HereBlingyPlugin;
 import com.hereblingy.hereblingy.auraskills.AuraSkillsHelper;
+import com.hereblingy.hereblingy.hereroleplay.HereRolePlayHelper;
 import com.hereblingy.hereblingy.config.MiningConfigManager;
 import com.hereblingy.hereblingy.config.MiningSettings;
 import com.hereblingy.hereblingy.map.ScanManager;
@@ -44,6 +45,7 @@ public class MineTask extends BukkitRunnable {
     private final Player player;
     private final List<Location> path;
     private final AuraSkillsHelper auraSkillsHelper;
+    private final HereRolePlayHelper hereRolePlayHelper;
     private final ScanManager scanManager;
     private final SetupManager setupManager;
     private final MiningConfigManager configManager;
@@ -75,12 +77,14 @@ public class MineTask extends BukkitRunnable {
     // Consecutive panic tracking for self-recovery
     private int consecutivePanics = 0;
 
+    // Area Mining Constructor
     public MineTask(HereBlingyPlugin plugin, Player player, List<Location> path,
-                    AuraSkillsHelper auraSkillsHelper, ScanResult scanResult) {
+                    AuraSkillsHelper auraSkillsHelper, HereRolePlayHelper hereRolePlayHelper, ScanResult scanResult) {
         this.plugin = plugin;
         this.player = player;
         this.path = path;
         this.auraSkillsHelper = auraSkillsHelper;
+        this.hereRolePlayHelper = hereRolePlayHelper;
         this.scanManager = plugin.getScanManager();
         this.setupManager = plugin.getSetupManager();
         this.configManager = plugin.getMiningConfigManager();
@@ -88,12 +92,14 @@ public class MineTask extends BukkitRunnable {
         this.isInfiniteMode = false;
     }
 
+    // Strip Mining Constructor
     public MineTask(HereBlingyPlugin plugin, Player player, List<Location> path,
-                    AuraSkillsHelper auraSkillsHelper, Location startLoc, int branchWidth) {
+                    AuraSkillsHelper auraSkillsHelper, HereRolePlayHelper hereRolePlayHelper, Location startLoc, int branchWidth) {
         this.plugin = plugin;
         this.player = player;
         this.path = path;
         this.auraSkillsHelper = auraSkillsHelper;
+        this.hereRolePlayHelper = hereRolePlayHelper;
         this.scanManager = plugin.getScanManager();
         this.setupManager = plugin.getSetupManager();
         this.configManager = plugin.getMiningConfigManager();
@@ -693,9 +699,17 @@ public class MineTask extends BukkitRunnable {
                         
                         boolean isShovel = isShovelWorthy(type);
                         if (isShovel) {
-                            auraSkillsHelper.addExcavationXp(player, auraSkillsHelper.getBaseXpForExcavationBlock(type));
+                            if (auraSkillsHelper.isAvailable()) {
+                                double auraXp = auraSkillsHelper.getBaseXpForExcavationBlock(type);
+                                auraSkillsHelper.addExcavationXp(player, auraXp);
+                                if (hereRolePlayHelper.isAvailable()) hereRolePlayHelper.addCollectXp(player, auraXp);
+                            }
                         } else {
-                            auraSkillsHelper.addMiningXp(player, auraSkillsHelper.getBaseXpForBlock(type));
+                            if (auraSkillsHelper.isAvailable()) {
+                                double auraXp = auraSkillsHelper.getBaseXpForBlock(type);
+                                auraSkillsHelper.addMiningXp(player, auraXp);
+                                if (hereRolePlayHelper.isAvailable()) hereRolePlayHelper.addCollectXp(player, auraXp);
+                            }
                         }
                     }
                 }
@@ -790,9 +804,17 @@ public class MineTask extends BukkitRunnable {
                 
                 boolean isShovel = isShovelWorthy(type);
                 if (isShovel) {
-                    auraSkillsHelper.addExcavationXp(player, auraSkillsHelper.getBaseXpForExcavationBlock(type));
+                    if (auraSkillsHelper.isAvailable()) {
+                        double auraXp = auraSkillsHelper.getBaseXpForExcavationBlock(type);
+                        auraSkillsHelper.addExcavationXp(player, auraXp);
+                        if (hereRolePlayHelper.isAvailable()) hereRolePlayHelper.addCollectXp(player, auraXp);
+                    }
                 } else {
-                    auraSkillsHelper.addMiningXp(player, auraSkillsHelper.getBaseXpForBlock(type));
+                    if (auraSkillsHelper.isAvailable()) {
+                        double auraXp = auraSkillsHelper.getBaseXpForBlock(type);
+                        auraSkillsHelper.addMiningXp(player, auraXp);
+                        if (hereRolePlayHelper.isAvailable()) hereRolePlayHelper.addCollectXp(player, auraXp);
+                    }
                 }
                 
                 teleportRetryCount = 0;
@@ -815,9 +837,17 @@ public class MineTask extends BukkitRunnable {
                 
                 boolean isShovel = isShovelWorthy(type);
                 if (isShovel) {
-                    auraSkillsHelper.addExcavationXp(player, auraSkillsHelper.getBaseXpForExcavationBlock(type));
+                    if (auraSkillsHelper.isAvailable()) {
+                        double auraXp = auraSkillsHelper.getBaseXpForExcavationBlock(type);
+                        auraSkillsHelper.addExcavationXp(player, auraXp);
+                        if (hereRolePlayHelper.isAvailable()) hereRolePlayHelper.addCollectXp(player, auraXp);
+                    }
                 } else {
-                    auraSkillsHelper.addMiningXp(player, auraSkillsHelper.getBaseXpForBlock(type));
+                    if (auraSkillsHelper.isAvailable()) {
+                        double auraXp = auraSkillsHelper.getBaseXpForBlock(type);
+                        auraSkillsHelper.addMiningXp(player, auraXp);
+                        if (hereRolePlayHelper.isAvailable()) hereRolePlayHelper.addCollectXp(player, auraXp);
+                    }
                 }
                 
                 teleportRetryCount = 0;
@@ -1386,6 +1416,9 @@ public class MineTask extends BukkitRunnable {
                         auraSkillsHelper.addExcavationXp(player, xp * 2.0);
                     } else {
                         auraSkillsHelper.addMiningXp(player, xp * 2.0);
+                    }
+                    if (hereRolePlayHelper.isAvailable()) {
+                        hereRolePlayHelper.addCollectXp(player, xp * 2.0);
                     }
 
                     player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.4f, 1.2f);
