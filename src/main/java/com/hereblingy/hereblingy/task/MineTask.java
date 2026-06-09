@@ -347,7 +347,7 @@ public class MineTask extends BukkitRunnable {
             // Move player towards target using velocity (safely walking through already cleared air)
             Vector direction = new Vector(dx, dy, dz).normalize();
             boolean isShovel = isShovelWorthy(target.getBlock().getType());
-            double speedMultiplier = 1.0 + (auraSkillsHelper.getSpeedBonus(player, isShovel) * 0.008);
+            double speedMultiplier = 1.0 + ((auraSkillsHelper != null ? auraSkillsHelper.getSpeedBonus(player, isShovel) : 0) * 0.008);
             Vector velocity = direction.multiply(SPEED * speedMultiplier);
             player.setVelocity(velocity);
         }
@@ -699,13 +699,13 @@ public class MineTask extends BukkitRunnable {
                         
                         boolean isShovel = isShovelWorthy(type);
                         if (isShovel) {
-                            if (auraSkillsHelper.isAvailable()) {
+                            if (auraSkillsHelper != null && auraSkillsHelper.isAvailable()) {
                                 double auraXp = auraSkillsHelper.getBaseXpForExcavationBlock(type);
                                 auraSkillsHelper.addExcavationXp(player, auraXp);
                                 if (hereRolePlayHelper.isAvailable()) hereRolePlayHelper.addCollectXp(player, auraXp);
                             }
                         } else {
-                            if (auraSkillsHelper.isAvailable()) {
+                            if (auraSkillsHelper != null && auraSkillsHelper.isAvailable()) {
                                 double auraXp = auraSkillsHelper.getBaseXpForBlock(type);
                                 auraSkillsHelper.addMiningXp(player, auraXp);
                                 if (hereRolePlayHelper.isAvailable()) hereRolePlayHelper.addCollectXp(player, auraXp);
@@ -804,13 +804,13 @@ public class MineTask extends BukkitRunnable {
                 
                 boolean isShovel = isShovelWorthy(type);
                 if (isShovel) {
-                    if (auraSkillsHelper.isAvailable()) {
+                    if (auraSkillsHelper != null && auraSkillsHelper.isAvailable()) {
                         double auraXp = auraSkillsHelper.getBaseXpForExcavationBlock(type);
                         auraSkillsHelper.addExcavationXp(player, auraXp);
                         if (hereRolePlayHelper.isAvailable()) hereRolePlayHelper.addCollectXp(player, auraXp);
                     }
                 } else {
-                    if (auraSkillsHelper.isAvailable()) {
+                    if (auraSkillsHelper != null && auraSkillsHelper.isAvailable()) {
                         double auraXp = auraSkillsHelper.getBaseXpForBlock(type);
                         auraSkillsHelper.addMiningXp(player, auraXp);
                         if (hereRolePlayHelper.isAvailable()) hereRolePlayHelper.addCollectXp(player, auraXp);
@@ -837,13 +837,13 @@ public class MineTask extends BukkitRunnable {
                 
                 boolean isShovel = isShovelWorthy(type);
                 if (isShovel) {
-                    if (auraSkillsHelper.isAvailable()) {
+                    if (auraSkillsHelper != null && auraSkillsHelper.isAvailable()) {
                         double auraXp = auraSkillsHelper.getBaseXpForExcavationBlock(type);
                         auraSkillsHelper.addExcavationXp(player, auraXp);
                         if (hereRolePlayHelper.isAvailable()) hereRolePlayHelper.addCollectXp(player, auraXp);
                     }
                 } else {
-                    if (auraSkillsHelper.isAvailable()) {
+                    if (auraSkillsHelper != null && auraSkillsHelper.isAvailable()) {
                         double auraXp = auraSkillsHelper.getBaseXpForBlock(type);
                         auraSkillsHelper.addMiningXp(player, auraXp);
                         if (hereRolePlayHelper.isAvailable()) hereRolePlayHelper.addCollectXp(player, auraXp);
@@ -863,7 +863,7 @@ public class MineTask extends BukkitRunnable {
     }
 
     private void applyExtraDrops(Block block, Material type) {
-        if (!auraSkillsHelper.isAvailable()) return;
+        if (auraSkillsHelper == null || !auraSkillsHelper.isAvailable()) return;
         try {
             ItemStack tool = player.getInventory().getItemInMainHand();
             boolean isShovel = isShovelWorthy(type);
@@ -1410,12 +1410,14 @@ public class MineTask extends BukkitRunnable {
                     }
 
                     // Gain AuraSkills experience
-                    ItemStack heldItem = player.getInventory().getItemInMainHand();
-                    boolean isShovel = heldItem != null && heldItem.getType().name().contains("SHOVEL");
-                    if (isShovel) {
-                        auraSkillsHelper.addExcavationXp(player, xp * 2.0);
-                    } else {
-                        auraSkillsHelper.addMiningXp(player, xp * 2.0);
+                    if (auraSkillsHelper != null) {
+                        ItemStack heldItem = player.getInventory().getItemInMainHand();
+                        boolean isShovel = heldItem != null && heldItem.getType().name().contains("SHOVEL");
+                        if (isShovel) {
+                            auraSkillsHelper.addExcavationXp(player, xp * 2.0);
+                        } else {
+                            auraSkillsHelper.addMiningXp(player, xp * 2.0);
+                        }
                     }
                     if (hereRolePlayHelper.isAvailable()) {
                         hereRolePlayHelper.addCollectXp(player, xp * 2.0);

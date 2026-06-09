@@ -21,7 +21,7 @@ public final class HereBlingyPlugin extends JavaPlugin {
     private static HereBlingyPlugin instance;
     private SelectionManager selectionManager;
     private final MineTaskManager mineTaskManager = new MineTaskManager();
-    private final AuraSkillsHelper auraSkillsHelper = new AuraSkillsHelper();
+    private AuraSkillsHelper auraSkillsHelper = null;
     private final HereRolePlayHelper hereRolePlayHelper = new HereRolePlayHelper();
     private ScanManager scanManager;
     private SetupManager setupManager;
@@ -40,7 +40,10 @@ public final class HereBlingyPlugin extends JavaPlugin {
         this.miningConfigManager = new MiningConfigManager(this);
         this.miningConfigUI = new MiningConfigUI(miningConfigManager);
         
-        auraSkillsHelper.init();
+        if (getServer().getPluginManager().getPlugin("AuraSkills") != null) {
+            auraSkillsHelper = new AuraSkillsHelper();
+            auraSkillsHelper.init();
+        }
         hereRolePlayHelper.init();
         
         // Create setup wizard command
