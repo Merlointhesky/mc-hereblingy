@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="210mm"
+   height="297mm"
+   viewBox="0 0 210 297"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.1.1 (3bf5ae0d25, 2021-09-20)"
+   sodipodi:docname="icon.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="0.80087682"
+     inkscape:cx="397.06481"
+     inkscape:cy="561.25985"
+     inkscape:window-width="3440"
+     inkscape:window-height="1369"
+     inkscape:window-x="1072"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs2">
+    <linearGradient
+       inkscape:collect="always"
+       id="linearGradient7789">
+      <stop
+         style="stop-color:#000000;stop-opacity:1;"
+         offset="0"
+         id="stop7785" />
+      <stop
+         style="stop-color:#000000;stop-opacity:0;"
+         offset="1"
+         id="stop7787" />
+    </linearGradient>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient7789"
+       id="linearGradient7793"
+       x1="-216.69411"
+       y1="74.939438"
+       x2="-215.40524"
+       y2="161.96954"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(0.73055382,0,0,0.73055381,215.47351,25.149007)" />
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#f07100;stroke-width:9.498;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       id="rect7284"
+       width="180"
+       height="180"
+       x="15.98919"
+       y="32.311642"
+       ry="27.943546"
+       inkscape:export-filename="D:\Development\Java\Minecraft Mods\HereBlingy\icon.png"
+       inkscape:export-xdpi="96"
+       inkscape:export-ydpi="96" />
+    <path
+       id="rect7366"
+       style="fill:#ff9b00;fill-opacity:0.652174;stroke-width:0.43234;stroke-linejoin:round;stroke:none;stroke-opacity:1"
+       d="m 54.177079,40.453189 c -15.48072,0 -27.94351,9.40671 -27.94351,21.09129 V 92.780056 H 159.78924 c 15.48074,0 27.65024,-7.758543 27.94352,-21.091287 V 58.53094 c 0,0 -2.16065,-14.113346 -19.6842,-18.077751 z"
+       inkscape:export-filename="D:\Development\Java\Minecraft Mods\HereBlingy\icon.png"
+       inkscape:export-xdpi="96"
+       inkscape:export-ydpi="96"
+       sodipodi:nodetypes="sscscccs" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:119.572px;line-height:1.25;font-family:sans-serif;fill:url(#linearGradient7793);fill-opacity:1;stroke:none;stroke-width:2.9893"
+       x="46.158421"
+       y="161.35538"
+       id="text2436"
+       transform="scale(0.79886773,1.2517717)"
+       inkscape:export-filename="D:\Development\Java\Minecraft Mods\HereBlingy\icon.png"
+       inkscape:export-xdpi="96"
+       inkscape:export-ydpi="96"><tspan
+         sodipodi:role="line"
+         id="tspan2434"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Eras Bold ITC';-inkscape-font-specification:'Eras Bold ITC';fill:url(#linearGradient7793);fill-opacity:1;stroke-width:2.9893"
+         x="46.158421"
+         y="161.35538">HB</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:119.572px;line-height:1.25;font-family:sans-serif;fill:#f07100;fill-opacity:1;stroke:none;stroke-width:2.9893"
+       x="30.605976"
+       y="156.07033"
+       id="text7206"
+       transform="scale(0.79886773,1.2517717)"
+       inkscape:export-filename="D:\Development\Java\Minecraft Mods\HereBlingy\icon.png"
+       inkscape:export-xdpi="96"
+       inkscape:export-ydpi="96"><tspan
+         sodipodi:role="line"
+         id="tspan7204"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Eras Bold ITC';-inkscape-font-specification:'Eras Bold ITC';fill:#f07100;fill-opacity:1;stroke-width:2.9893"
+         x="30.605976"
+         y="156.07033">HB</tspan></text>
+  </g>
+</svg>

@@ -702,14 +702,15 @@ public class MineTask extends BukkitRunnable {
                             if (auraSkillsHelper != null && auraSkillsHelper.isAvailable()) {
                                 double auraXp = auraSkillsHelper.getBaseXpForExcavationBlock(type);
                                 auraSkillsHelper.addExcavationXp(player, auraXp);
-                                if (hereRolePlayHelper.isAvailable()) hereRolePlayHelper.addCollectXp(player, auraXp);
                             }
                         } else {
                             if (auraSkillsHelper != null && auraSkillsHelper.isAvailable()) {
                                 double auraXp = auraSkillsHelper.getBaseXpForBlock(type);
                                 auraSkillsHelper.addMiningXp(player, auraXp);
-                                if (hereRolePlayHelper.isAvailable()) hereRolePlayHelper.addCollectXp(player, auraXp);
                             }
+                        }
+                        if (hereRolePlayHelper.isAvailable()) {
+                            hereRolePlayHelper.addCollectXp(player, getHrpBlockXp(type));
                         }
                     }
                 }
@@ -807,14 +808,15 @@ public class MineTask extends BukkitRunnable {
                     if (auraSkillsHelper != null && auraSkillsHelper.isAvailable()) {
                         double auraXp = auraSkillsHelper.getBaseXpForExcavationBlock(type);
                         auraSkillsHelper.addExcavationXp(player, auraXp);
-                        if (hereRolePlayHelper.isAvailable()) hereRolePlayHelper.addCollectXp(player, auraXp);
                     }
                 } else {
                     if (auraSkillsHelper != null && auraSkillsHelper.isAvailable()) {
                         double auraXp = auraSkillsHelper.getBaseXpForBlock(type);
                         auraSkillsHelper.addMiningXp(player, auraXp);
-                        if (hereRolePlayHelper.isAvailable()) hereRolePlayHelper.addCollectXp(player, auraXp);
                     }
+                }
+                if (hereRolePlayHelper.isAvailable()) {
+                    hereRolePlayHelper.addCollectXp(player, getHrpBlockXp(type));
                 }
                 
                 teleportRetryCount = 0;
@@ -840,14 +842,15 @@ public class MineTask extends BukkitRunnable {
                     if (auraSkillsHelper != null && auraSkillsHelper.isAvailable()) {
                         double auraXp = auraSkillsHelper.getBaseXpForExcavationBlock(type);
                         auraSkillsHelper.addExcavationXp(player, auraXp);
-                        if (hereRolePlayHelper.isAvailable()) hereRolePlayHelper.addCollectXp(player, auraXp);
                     }
                 } else {
                     if (auraSkillsHelper != null && auraSkillsHelper.isAvailable()) {
                         double auraXp = auraSkillsHelper.getBaseXpForBlock(type);
                         auraSkillsHelper.addMiningXp(player, auraXp);
-                        if (hereRolePlayHelper.isAvailable()) hereRolePlayHelper.addCollectXp(player, auraXp);
                     }
+                }
+                if (hereRolePlayHelper.isAvailable()) {
+                    hereRolePlayHelper.addCollectXp(player, getHrpBlockXp(type));
                 }
                 
                 teleportRetryCount = 0;
@@ -860,6 +863,20 @@ public class MineTask extends BukkitRunnable {
             }
         }
         return false;
+    }
+
+    private double getHrpBlockXp(Material material) {
+        String name = material.name();
+        if (name.contains("COAL_ORE") || name.contains("IRON_ORE") || name.contains("COPPER_ORE") || 
+            name.contains("GOLD_ORE") || name.contains("REDSTONE_ORE") || name.contains("LAPIS_ORE") || 
+            name.contains("NETHER_GOLD_ORE") || name.contains("QUARTZ_ORE")) {
+            return 3.75;
+        } else if (name.contains("DIAMOND_ORE") || name.contains("EMERALD_ORE") || material == Material.ANCIENT_DEBRIS) {
+            return 25.0;
+        } else if (org.bukkit.Tag.MINEABLE_PICKAXE.isTagged(material) || org.bukkit.Tag.MINEABLE_SHOVEL.isTagged(material)) {
+            return 1.0;
+        }
+        return 1.0;
     }
 
     private void applyExtraDrops(Block block, Material type) {
@@ -1419,9 +1436,7 @@ public class MineTask extends BukkitRunnable {
                             auraSkillsHelper.addMiningXp(player, xp * 2.0);
                         }
                     }
-                    if (hereRolePlayHelper.isAvailable()) {
-                        hereRolePlayHelper.addCollectXp(player, xp * 2.0);
-                    }
+
 
                     player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.4f, 1.2f);
                     orb.remove();

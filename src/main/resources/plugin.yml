@@ -1,5 +1,5 @@
 name: HereBlingy
-version: '1.1.0'
+version: '${version}'
 main: com.hereblingy.hereblingy.HereBlingyPlugin
 description: Premium Paper auto-mining plugin with dynamic strip-mining and AuraSkills integration
 api-version: '1.21'

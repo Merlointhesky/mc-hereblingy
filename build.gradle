@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'com.hereblingy'
-version = '1.2.0'
+version = '1.2.2'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
@@ -18,7 +18,7 @@ repositories {
 dependencies {
     compileOnly 'io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT'
     compileOnly 'dev.aurelium:auraskills-api-bukkit:2.2.4'
-    compileOnly files('../HereRolePlay/build/libs/HereRolePlay-1.0.1.jar')
+    compileOnly project(':HereRolePlay')
 }
 
 processResources {
