@@ -7,6 +7,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.UUID;
@@ -97,6 +98,14 @@ public class MiningConfigListener implements Listener {
             configUI.openStandardMenu(player);
         } else if (title.equals("§0HereBlingy - Debris & Soils")) {
             configUI.openDebrisMenu(player);
+        }
+    }
+
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event) {
+        String title = event.getView().getTitle();
+        if (title.startsWith("§0HereBlingy -")) {
+            event.setCancelled(true);
         }
     }
 }

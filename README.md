@@ -36,6 +36,9 @@ A premium [Paper](https://papermc.io) Minecraft plugin for **automated branch mi
   - Intercepts block-breaking experience orbs in a 6-block radius.
   - If either or both of the hotbar tools (Pickaxe/Shovel) have the **Mending** enchantment, directly uses the XP to repair their durability, prioritizing the more damaged tool first. Excess XP is given to the player.
 
+- **HereRolePlay Integration**:
+  - Automatically awards Collect experience points directly to the player for each block and ore mined, helping level up Miner and Admin classes.
+
 - **Smart Tool Supply Refueling Station**:
   - Guides player via setup wizard to configure a **Tool Supply Chest**.
   - When either tool drops below **10 durability**, the player will head to the chest, deposit the worn tool, withdraw a fresh pickaxe/shovel, and return to mining automatically!
@@ -118,7 +121,7 @@ Build using Gradle:
 ```bash
 ./gradlew build
 ```
-The packaged JAR will be located at `build/libs/HereBlingy-1.0.0.jar`.
+The packaged JAR will be located at `build/libs/HereBlingy-1.2.2.jar`.
 
 ---
 
