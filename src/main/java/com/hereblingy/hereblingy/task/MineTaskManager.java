@@ -15,6 +15,19 @@ public class MineTaskManager {
     private final Map<UUID, AutoDefenseTask> activeDefenseTasks = new HashMap<>();
     private final Map<UUID, Integer> lastStopIndices = new HashMap<>();
     private final Map<UUID, java.util.List<org.bukkit.Location>> cachedPaths = new HashMap<>();
+    private final java.util.Set<UUID> quittingPlayers = new java.util.HashSet<>();
+
+    public void markQuitting(UUID playerId) {
+        quittingPlayers.add(playerId);
+    }
+
+    public void removeQuitting(UUID playerId) {
+        quittingPlayers.remove(playerId);
+    }
+
+    public boolean isQuitting(UUID playerId) {
+        return quittingPlayers.contains(playerId);
+    }
 
     public void cachePath(UUID playerId, java.util.List<org.bukkit.Location> path) {
         cachedPaths.put(playerId, path);

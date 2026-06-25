@@ -16,6 +16,11 @@ A premium [Paper](https://papermc.io) Minecraft plugin for **automated branch mi
     - Excavates the entire cuboid layer-by-layer (2-block-high horizontal slices) safely from the top down.
     - **Ignores Trees & Leaves**: Automatically bypasses log, wood, leaves, stems, or root blocks ("hubris") entirely so that natural forests are left intact while standard stone, dirt, sand, mud, and gravel blocks are leveled to the ground.
 
+- **Persistent Real-Time Progress Tracking**:
+  - Displays a persistent **Boss Bar** at the top of the screen during active runs.
+  - Displays elapsed time and real-time statistics: horizontal distance covered (in meters) for strip mining, or exact completion percentage for terraforming tasks.
+  - Automatically hides once the task finishes, pauses, or stops.
+
 - **Dynamic Dual-Tool Swapping**:
   - Classifies blocks into **Pickaxe-Worthy** (stone, deepslate, ores, netherrack, tuff, calcite, diorite, andesite, granite, obsidian) and **Shovel-Worthy** (dirt, sand, gravel, clay, soul soil, snow, mud).
   - Automatically swaps active hotbar quickslots to the appropriate tool before swing execution.
@@ -121,7 +126,7 @@ Build using Gradle:
 ```bash
 ./gradlew build
 ```
-The packaged JAR will be located at `build/libs/HereBlingy-1.2.2.jar`.
+The packaged JAR will be located at `build/libs/HereBlingy-1.3.0.jar`.
 
 ---
 

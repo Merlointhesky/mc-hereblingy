@@ -111,10 +111,15 @@ public class MineListener implements Listener {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
-        if (mineTaskManager.isMining(player)) {
-            mineTaskManager.stopTask(player);
+        mineTaskManager.markQuitting(player.getUniqueId());
+        try {
+            if (mineTaskManager.isMining(player)) {
+                mineTaskManager.stopTask(player);
+            }
+            mineTaskManager.stopAutoDefense(player, true);
+        } finally {
+            mineTaskManager.removeQuitting(player.getUniqueId());
         }
-        mineTaskManager.stopAutoDefense(player, true);
     }
 
     @EventHandler

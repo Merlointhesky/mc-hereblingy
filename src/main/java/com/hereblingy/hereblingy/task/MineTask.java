@@ -10,6 +10,7 @@ import com.hereblingy.hereblingy.map.ScanResult;
 import com.hereblingy.hereblingy.path.PathGenerator;
 import com.hereblingy.hereblingy.setup.SetupConfiguration;
 import com.hereblingy.hereblingy.setup.SetupManager;
+import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
@@ -77,6 +78,9 @@ public class MineTask extends BukkitRunnable {
     // Consecutive panic tracking for self-recovery
     private int consecutivePanics = 0;
 
+    private final long startTime;
+    private final BossBar bossBar;
+
     // Area Mining Constructor
     public MineTask(HereBlingyPlugin plugin, Player player, List<Location> path,
                     AuraSkillsHelper auraSkillsHelper, HereRolePlayHelper hereRolePlayHelper, ScanResult scanResult) {
@@ -90,6 +94,14 @@ public class MineTask extends BukkitRunnable {
         this.configManager = plugin.getMiningConfigManager();
         this.scanResult = scanResult;
         this.isInfiniteMode = false;
+        this.startTime = System.currentTimeMillis();
+        this.bossBar = BossBar.bossBar(
+            Component.text("⛏ Preparing Terraforming...", NamedTextColor.GOLD),
+            0.0f,
+            BossBar.Color.YELLOW,
+            BossBar.Overlay.PROGRESS
+        );
+        this.player.showBossBar(this.bossBar);
     }
 
     // Strip Mining Constructor
@@ -109,6 +121,14 @@ public class MineTask extends BukkitRunnable {
         this.branchWidth = branchWidth;
         this.facing = PathGenerator.getFacingDirection(startLoc.getYaw());
         this.lengthGenerated = 16; // Initial segment starts at 16 blocks deep
+        this.startTime = System.currentTimeMillis();
+        this.bossBar = BossBar.bossBar(
+            Component.text("⛏ Preparing Strip Mining...", NamedTextColor.GOLD),
+            0.0f,
+            BossBar.Color.YELLOW,
+            BossBar.Overlay.PROGRESS
+        );
+        this.player.showBossBar(this.bossBar);
     }
 
     public HereBlingyPlugin getPlugin() {
@@ -125,9 +145,14 @@ public class MineTask extends BukkitRunnable {
 
     @Override
     public synchronized void cancel() throws IllegalStateException {
+        if (bossBar != null) {
+            player.hideBossBar(bossBar);
+        }
         plugin.getMineTaskManager().removeActiveTask(player.getUniqueId());
         super.cancel();
-        plugin.getMineTaskManager().startAutoDefense(player);
+        if (player.isOnline() && plugin.isEnabled() && !plugin.getMineTaskManager().isQuitting(player.getUniqueId())) {
+            plugin.getMineTaskManager().startAutoDefense(player);
+        }
     }
 
     @Override
@@ -136,6 +161,8 @@ public class MineTask extends BukkitRunnable {
             cancel();
             return;
         }
+
+        updateBossBar();
 
         // Continuous tick-rate leak checking centered at player's current location.
         // Runs every single tick (20 times/sec) to ensure fluid safety even during pauses or defense.
@@ -2080,5 +2107,58 @@ public class MineTask extends BukkitRunnable {
             }
         }
         return false;
+    }
+
+    private void updateBossBar() {
+        if (bossBar == null || !player.isOnline()) return;
+
+        long elapsed = System.currentTimeMillis() - startTime;
+        long secs = elapsed / 1000;
+        long mins = secs / 60;
+        long hours = mins / 60;
+        String timeString;
+        if (hours > 0) {
+            timeString = String.format("%d:%02d:%02d", hours, mins % 60, secs % 60);
+        } else {
+            timeString = String.format("%02d:%02d", mins, secs % 60);
+        }
+
+        Component title;
+        float progress;
+
+        if (isInfiniteMode) {
+            double distance = Math.sqrt(
+                Math.pow(player.getLocation().getX() - startLoc.getX(), 2) +
+                Math.pow(player.getLocation().getZ() - startLoc.getZ(), 2)
+            );
+            title = Component.text()
+                .append(Component.text("⛏ Strip Mining", NamedTextColor.GOLD))
+                .append(Component.text(" | ", NamedTextColor.GRAY))
+                .append(Component.text("Distance: ", NamedTextColor.YELLOW))
+                .append(Component.text((int) distance + "m", NamedTextColor.WHITE))
+                .append(Component.text(" | ", NamedTextColor.GRAY))
+                .append(Component.text("Time: ", NamedTextColor.YELLOW))
+                .append(Component.text(timeString, NamedTextColor.WHITE))
+                .build();
+            progress = 1.0f;
+        } else {
+            int total = Math.max(1, path.size());
+            int current = Math.min(currentIndex, total);
+            double pct = ((double) current / total) * 100.0;
+            title = Component.text()
+                .append(Component.text("⛏ Terraforming", NamedTextColor.GOLD))
+                .append(Component.text(" | ", NamedTextColor.GRAY))
+                .append(Component.text("Progress: ", NamedTextColor.YELLOW))
+                .append(Component.text(String.format("%.1f%%", pct), NamedTextColor.WHITE))
+                .append(Component.text(" | ", NamedTextColor.GRAY))
+                .append(Component.text("Time: ", NamedTextColor.YELLOW))
+                .append(Component.text(timeString, NamedTextColor.WHITE))
+                .build();
+            progress = (float) current / total;
+            progress = Math.max(0.0f, Math.min(1.0f, progress));
+        }
+
+        bossBar.name(title);
+        bossBar.progress(progress);
     }
 }

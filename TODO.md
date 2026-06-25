@@ -1,2 +1,8 @@
-# HereBlingy
-- the plugin seems to panic too many times because of impossible to navigate or lava. We should be able to manage this by keeping the stack of "junk" blocks logic and placing blocks as we go instead of doing an auto-stop every time. Please refine the process to ensure continuity of the process.
+# TODO Plan for HereBlingy
+
+- [ ] Retain the core AFK mining functionality.
+- [ ] Vastly improve the tracking and stability.
+- [ ] Add a persistent **Boss Bar** to show real-time progress.
+  - [ ] Display time spent.
+  - [ ] Display distance covered or the percentage completion of the terraforming task.
+- [ ] Ensure the bot has the self-defense mechanics standard across other bots.
